@@ -132,7 +132,7 @@
 
 ## 手动验证清单
 
-- [ ] 最新 Entity Provider v8 的 NSIS 安装包静默安装并启动；前一版相同资源清单中 GNU 产物的 `WebView2Loader.dll` 与本地语义运行库 `onnxruntime.dll` 已确认均与 EXE 同级（专用临时目录 smoke）
+- [x] 最新 NSIS 安装包静默安装并启动；当前 GNU 产物的 `WebView2Loader.dll` 与本地语义运行库 `onnxruntime.dll` 已确认均与 EXE 同级，应用存活超过 8 秒（专用临时目录 smoke，目录已清理）
 - [ ] 首次启动不要求 Docker / Python / PostgreSQL
 - [x] 中文路径素材库可正常扫描（`core_smoke`）
 - [x] 带空格路径素材库可正常扫描（`core_smoke`）

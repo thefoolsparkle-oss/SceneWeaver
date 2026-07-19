@@ -19,7 +19,7 @@ npm run tauri build
 - `src-tauri/target/release/bundle/msi/*.msi`
 - `src-tauri/target/release/bundle/nsis/*.exe`
 
-当前验证状态：当前代码的 `src-tauri/target/release/sceneweaver.exe` 与最新 `src-tauri/target/release/bundle/nsis/SceneWeaver_0.1.0_x64-setup.exe` 已成功生成。GNU 工具链下需在 `bundle.resources` 显式将构建生成的 `WebView2Loader.dll` 安装到 EXE 同级目录；同一资源清单也会携带官方 ONNX Runtime Windows x64 CPU 的 `onnxruntime.dll`，供可选本地语义模型使用。紧邻的前一版相同资源清单已在专用临时目录静默安装，确认 EXE、WebView loader 与 ONNX Runtime 三者同级，且 EXE 运行超过 8 秒后才清理目录；本轮 Entity Provider v8 的最新安装器隔离复验因外部执行额度限制尚待重跑。尚未在干净 Windows 环境完成交互式安装、卸载、升级和 MSI 验证。
+当前验证状态：当前代码的 `src-tauri/target/release/sceneweaver.exe` 与最新 `src-tauri/target/release/bundle/nsis/SceneWeaver_0.1.0_x64-setup.exe` 已成功生成。GNU 工具链下需在 `bundle.resources` 显式将构建生成的 `WebView2Loader.dll` 安装到 EXE 同级目录；同一资源清单也会携带官方 ONNX Runtime Windows x64 CPU 的 `onnxruntime.dll`，供可选本地语义模型使用。2026-07-19 已将当前安装器静默安装到专用临时目录，确认 EXE（57,950,024 bytes）、`WebView2Loader.dll`（160,320 bytes）和 `onnxruntime.dll`（14,897,976 bytes）三者同级，应用隐藏启动后存活超过 8 秒；测试安装目录已清理。尚未在干净 Windows 环境完成交互式安装、卸载、升级和 MSI 验证。
 
 ## 侧车依赖
 

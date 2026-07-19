@@ -156,8 +156,8 @@ ACG 查询预设已接入搜索页（角色近景、雨夜侧脸、战斗无 UI/
 - Rust `cargo build`：成功（已生成桌面可执行文件）。
 - Rust `cargo build --release`：成功；当前生成的 `sceneweaver.exe` 已实际启动并在 8 秒进程存活检查后停止。
 - Rust `cargo run --bin core_smoke`：成功；实际验证中文/空格路径、缩略图、增量扫描、删除离线、默认选片导出与片段 Selects。
-- `npm.cmd run tauri:build -- --bundles nsis`：成功；最新 Entity Provider v8 代码已生成 NSIS 安装器 `SceneWeaver_0.1.0_x64-setup.exe`。
-- NSIS 安装 smoke：紧邻前一版相同资源清单已成功在专用临时目录静默安装，确认 `WebView2Loader.dll`、`onnxruntime.dll` 均与 EXE 同级且应用运行超过 8 秒，临时安装目录已清理。最新 v8 安装器的相同复验待外部执行额度恢复后重跑。
+- `npm.cmd run tauri:build -- --bundles nsis`：成功；当前代码已生成 NSIS 安装器 `SceneWeaver_0.1.0_x64-setup.exe`。
+- NSIS 安装 smoke：当前安装器已成功在专用临时目录静默安装，确认 EXE、`WebView2Loader.dll`、`onnxruntime.dll` 均同级且应用隐藏运行超过 8 秒；临时安装目录已清理。
 - Windows release EXE 启动验证：成功（进程运行超过 8 秒后由验证脚本停止）。
 - Rust `cargo test`：测试二进制启动失败（`STATUS_ENTRYPOINT_NOT_FOUND`），待迁移 MSVC 工具链或修复 GNU 运行时加载问题。
 - `tauri dev`：未完整验证；release EXE 已完成实际启动验证。
