@@ -80,7 +80,7 @@ export interface SearchRequest {
   media_types?: MediaType[];
   min_quality_score?: number | null;
 }
-export interface SearchResult { asset: Asset; score: number; match_reasons: string[]; unmet_should: string[]; }
+export interface SearchResult { asset: Asset; score: number; match_reasons: string[]; unmet_should: string[]; matching_segment_ids: string[]; }
 
 export interface Entity { id: string; entity_type: string; name: string; description: string | null; aliases: string[]; created_at: number; updated_at: number; }
 export interface EntityReference { id: string; entity_id: string; asset_id: string | null; image_path: string | null; is_positive: boolean; created_at: number; }

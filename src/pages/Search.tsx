@@ -21,7 +21,7 @@ export default function Search() {
   const [mediaTypes, setMediaTypes] = useState<MediaType[]>([]);
   const [minQuality, setMinQuality] = useState<number | null>(null);
   const [entityId, setEntityId] = useState('');
-  const [segmentAssetId, setSegmentAssetId] = useState<string | null>(null);
+  const [segmentFocus, setSegmentFocus] = useState<{ assetId: string; matchingSegmentIds?: string[] } | null>(null);
   const history = useQuery({ queryKey: ['recentSearches'], queryFn: recentSearches });
   const entities = useQuery({ queryKey: ['entities'], queryFn: listEntities });
   const acgPack = useQuery({ queryKey: ['acgCreatorPack'], queryFn: acgCreatorPackEnabled });
@@ -29,7 +29,7 @@ export default function Search() {
   const runQuery = (rawQuery: string) => {
     if (rawQuery.trim()) {
       const parsed = parseQueryConditions(rawQuery.trim());
-      similar.reset(); entityMatches.reset(); setSimilarReference(null); setSegmentAssetId(null);
+      similar.reset(); entityMatches.reset(); setSimilarReference(null); setSegmentFocus(null);
       const request = { ...(acgPack.data ? applyAcgCreatorPack(parsed) : parsed), media_types: mediaTypes, min_quality_score: minQuality };
       setConditions(request);
       search.mutate(request);
@@ -38,15 +38,16 @@ export default function Search() {
   const submit = (event: React.FormEvent) => { event.preventDefault(); runQuery(query); };
   const chooseReferenceImage = async () => {
     const path = await open({ multiple: false, filters: [{ name: '图片', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'] }] });
-    if (typeof path === 'string') { setSimilarReference(path); search.reset(); similar.reset(); entityMatches.reset(); setSegmentAssetId(null); referenceImage.mutate(path); }
+    if (typeof path === 'string') { setSimilarReference(path); search.reset(); similar.reset(); entityMatches.reset(); setSegmentFocus(null); referenceImage.mutate(path); }
   };
   const searchEntity = () => {
     if (!entityId) return;
-    search.reset(); similar.reset(); referenceImage.reset(); setSimilarReference(null); setSegmentAssetId(null);
+    search.reset(); similar.reset(); referenceImage.reset(); setSimilarReference(null); setSegmentFocus(null);
     entityMatches.mutate(entityId);
   };
   const keywordAssets = search.data?.map((result) => result.asset) ?? [];
   const keywordExplanations = Object.fromEntries((search.data ?? []).map((result) => [result.asset.id, { reasons: result.match_reasons, unmet: result.unmet_should }]));
+  const keywordMatchingSegments = Object.fromEntries((search.data ?? []).map((result) => [result.asset.id, result.matching_segment_ids]));
   const activeAssets = entityMatches.data ?? referenceImage.data ?? similar.data ?? keywordAssets;
   const removeCondition = (kind: 'must' | 'should' | 'must_not', term: string) => {
     if (!conditions) return;
@@ -97,8 +98,8 @@ export default function Search() {
       )}
       {(search.isError || similar.isError || referenceImage.isError || entityMatches.isError) && <p className="mb-4 text-sm text-red-600">搜索失败：{(entityMatches.error ?? referenceImage.error ?? similar.error ?? search.error)?.message}</p>}
       {(search.data || similar.data || referenceImage.data || entityMatches.data) && <p className="mb-4 text-sm text-neutral-500">{entityMatches.data ? '实体匹配结果' : referenceImage.data ? '参考图相似结果' : similarReference ? '视觉相似结果' : '关键词结果'}：{activeAssets.length} 项</p>}
-      {(search.data || similar.data || referenceImage.data || entityMatches.data) && <MediaGrid assets={activeAssets} explanations={referenceImage.data || similar.data || entityMatches.data ? undefined : keywordExplanations} onViewSegments={setSegmentAssetId} onFindSimilar={(assetId) => { setSimilarReference(assetId); referenceImage.reset(); entityMatches.reset(); setSegmentAssetId(null); similar.mutate(assetId); }} />}
-      {segmentAssetId && <SegmentPanel assetId={segmentAssetId} onClose={() => setSegmentAssetId(null)} />}
+      {(search.data || similar.data || referenceImage.data || entityMatches.data) && <MediaGrid assets={activeAssets} explanations={referenceImage.data || similar.data || entityMatches.data ? undefined : keywordExplanations} matchingSegments={referenceImage.data || similar.data || entityMatches.data ? undefined : keywordMatchingSegments} onViewSegments={(assetId, matchingSegmentIds) => setSegmentFocus({ assetId, matchingSegmentIds })} onFindSimilar={(assetId) => { setSimilarReference(assetId); referenceImage.reset(); entityMatches.reset(); setSegmentFocus(null); similar.mutate(assetId); }} />}
+      {segmentFocus && <SegmentPanel assetId={segmentFocus.assetId} matchingSegmentIds={segmentFocus.matchingSegmentIds} onClose={() => setSegmentFocus(null)} />}
     </div>
   );
 }

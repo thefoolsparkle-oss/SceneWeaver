@@ -24,6 +24,10 @@ pub struct SearchResult {
     pub score: f64,
     pub match_reasons: Vec<String>,
     pub unmet_should: Vec<String>,
+    /// Exact segments satisfying structured subtitle/quality conditions. An
+    /// empty list means that this result was not narrowed by a segment label.
+    #[serde(default)]
+    pub matching_segment_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

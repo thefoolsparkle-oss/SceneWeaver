@@ -264,6 +264,13 @@ pub async fn search_assets(
         apply_acg_tag_explanations(result, &request, &acg_tags);
         let segments = state.db.list_segments(&result.asset.id)?;
         apply_segment_label_explanations(result, &request, &segments);
+        result.matching_segment_ids = matching_segment_ids(&request, &segments);
+        if !result.matching_segment_ids.is_empty() {
+            result.match_reasons.push(format!(
+                "已定位 {} 个满足片段条件的镜头",
+                result.matching_segment_ids.len()
+            ));
+        }
     }
     // Keyword, CLIP and entity candidates are retrieved through separate
     // paths. Rank only after they have been merged so a later semantic or
@@ -419,6 +426,42 @@ fn matching_segment_label(term: &str, segments: &[Segment]) -> Option<crate::mod
     })
 }
 
+fn matching_segment_ids(
+    request: &crate::models::SearchRequest,
+    segments: &[Segment],
+) -> Vec<String> {
+    let required = request
+        .must
+        .iter()
+        .filter_map(|term| crate::models::segment_label_for_term(term))
+        .collect::<Vec<_>>();
+    let excluded = request
+        .must_not
+        .iter()
+        .filter_map(|term| crate::models::segment_label_for_term(term))
+        .collect::<Vec<_>>();
+    let preferred = request
+        .should
+        .iter()
+        .filter_map(|term| crate::models::segment_label_for_term(term))
+        .collect::<Vec<_>>();
+    if required.is_empty() && excluded.is_empty() && preferred.is_empty() {
+        return Vec::new();
+    }
+    segments
+        .iter()
+        .filter(|segment| {
+            if !required.is_empty() || !excluded.is_empty() {
+                required.iter().all(|label| label.matches_segment(segment))
+                    && excluded.iter().all(|label| !label.matches_segment(segment))
+            } else {
+                preferred.iter().any(|label| label.matches_segment(segment))
+            }
+        })
+        .map(|segment| segment.id.clone())
+        .collect()
+}
+
 fn explain_search_result(
     asset: Asset,
     request: &crate::models::SearchRequest,
@@ -457,6 +500,7 @@ fn explain_search_result(
         score,
         match_reasons,
         unmet_should,
+        matching_segment_ids: Vec::new(),
     }
 }
 

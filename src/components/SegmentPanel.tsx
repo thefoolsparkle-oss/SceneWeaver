@@ -7,21 +7,24 @@ import type { Segment } from '@/types';
 interface SegmentPanelProps {
   assetId: string;
   onClose: () => void;
+  matchingSegmentIds?: string[];
 }
 
 /** A searchable video's shot-level actions, shared independently of a library page. */
-export function SegmentPanel({ assetId, onClose }: SegmentPanelProps) {
+export function SegmentPanel({ assetId, onClose, matchingSegmentIds }: SegmentPanelProps) {
   const segments = useQuery({
     queryKey: ['segments', assetId],
     queryFn: () => listSegments(assetId),
   });
+
+  const displayedSegments = matchingSegmentIds?.length ? segments.data?.filter((segment) => matchingSegmentIds.includes(segment.id)) : segments.data;
 
   return (
     <section className="mt-8 rounded-xl border bg-white p-4 dark:bg-neutral-950">
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h2 className="font-semibold">镜头片段</h2>
-          <p className="mt-1 text-xs text-neutral-500">可预览、复制入点时间码，或把单个片段加入默认 Selects。</p>
+          <p className="mt-1 text-xs text-neutral-500">{matchingSegmentIds?.length ? `当前搜索已定位 ${matchingSegmentIds.length} 个匹配片段。` : '可预览、复制入点时间码，或把单个片段加入默认 Selects。'}</p>
         </div>
         <button type="button" onClick={onClose} className="text-sm text-neutral-500">关闭</button>
       </div>
@@ -29,7 +32,7 @@ export function SegmentPanel({ assetId, onClose }: SegmentPanelProps) {
       {segments.isError && <p className="text-sm text-red-600">读取片段失败：{segments.error.message}</p>}
       {segments.data?.length === 0 && <p className="text-sm text-neutral-500">尚未生成镜头片段。请在视频卡片中执行“切分”。</p>}
       <div className="space-y-3">
-        {segments.data?.map((segment) => <SegmentPanelCard key={segment.id} assetId={assetId} segment={segment} />)}
+        {displayedSegments?.map((segment) => <SegmentPanelCard key={segment.id} assetId={assetId} segment={segment} />)}
       </div>
     </section>
   );

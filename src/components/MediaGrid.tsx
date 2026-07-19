@@ -6,13 +6,14 @@ import type { Asset } from '@/types';
 
 interface MediaGridProps {
   assets: Asset[];
-  onViewSegments?: (assetId: string) => void;
+  onViewSegments?: (assetId: string, matchingSegmentIds?: string[]) => void;
   onFindSimilar?: (assetId: string) => void;
   onEntityFeedback?: (assetId: string, isPositive: boolean) => void;
   explanations?: Record<string, { reasons: string[]; unmet: string[] }>;
+  matchingSegments?: Record<string, string[]>;
 }
 
-export function MediaGrid({ assets, onViewSegments, onFindSimilar, onEntityFeedback, explanations }: MediaGridProps) {
+export function MediaGrid({ assets, onViewSegments, onFindSimilar, onEntityFeedback, explanations, matchingSegments }: MediaGridProps) {
   const favorites = useQuery({ queryKey: ['favorites'], queryFn: favoriteAssetIds });
   if (assets.length === 0) {
     return (
@@ -25,13 +26,13 @@ export function MediaGrid({ assets, onViewSegments, onFindSimilar, onEntityFeedb
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
       {assets.map((asset) => (
-        <MediaCard key={asset.id} asset={asset} isFavorite={favorites.data?.includes(asset.id) ?? false} onViewSegments={onViewSegments} onFindSimilar={onFindSimilar} onEntityFeedback={onEntityFeedback} explanation={explanations?.[asset.id]} />
+        <MediaCard key={asset.id} asset={asset} isFavorite={favorites.data?.includes(asset.id) ?? false} onViewSegments={onViewSegments} onFindSimilar={onFindSimilar} onEntityFeedback={onEntityFeedback} explanation={explanations?.[asset.id]} matchingSegmentIds={matchingSegments?.[asset.id]} />
       ))}
     </div>
   );
 }
 
-function MediaCard({ asset, isFavorite, onViewSegments, onFindSimilar, onEntityFeedback, explanation }: { asset: Asset; isFavorite: boolean; onViewSegments?: (assetId: string) => void; onFindSimilar?: (assetId: string) => void; onEntityFeedback?: (assetId: string, isPositive: boolean) => void; explanation?: { reasons: string[]; unmet: string[] } }) {
+function MediaCard({ asset, isFavorite, onViewSegments, onFindSimilar, onEntityFeedback, explanation, matchingSegmentIds }: { asset: Asset; isFavorite: boolean; onViewSegments?: (assetId: string, matchingSegmentIds?: string[]) => void; onFindSimilar?: (assetId: string) => void; onEntityFeedback?: (assetId: string, isPositive: boolean) => void; explanation?: { reasons: string[]; unmet: string[] }; matchingSegmentIds?: string[] }) {
   const [isDetecting, setIsDetecting] = useState(false);
   const [segmentCount, setSegmentCount] = useState<number | null>(null);
   const [detectionError, setDetectionError] = useState<string | null>(null);
@@ -110,6 +111,7 @@ function MediaCard({ asset, isFavorite, onViewSegments, onFindSimilar, onEntityF
         {asset.media_type === 'video' && segmentCount !== null && (
           <p className="text-xs text-neutral-500">已生成 {segmentCount} 个片段</p>
         )}
+        {!!matchingSegmentIds?.length && <p className="text-xs text-brand-600 dark:text-brand-300">已定位 {matchingSegmentIds.length} 个匹配片段</p>}
         {detectionError && <p className="text-xs text-red-600">{detectionError}</p>}
         {tagError && <p className="text-xs text-red-600">{tagError}</p>}
         {explanation && <p className="mt-1 line-clamp-2 text-xs text-neutral-500" title={`${explanation.reasons.join('；')}${explanation.unmet.length ? `；未命中偏好：${explanation.unmet.join('、')}` : ''}`}>{explanation.reasons.join('；')}{explanation.unmet.length ? ` · 未命中偏好：${explanation.unmet.join('、')}` : ''}</p>}
@@ -134,7 +136,7 @@ function MediaCard({ asset, isFavorite, onViewSegments, onFindSimilar, onEntityF
         {onFindSimilar && <ActionButton onClick={() => onFindSimilar(asset.id)} title="查找视觉相似素材">相似</ActionButton>}
         {onEntityFeedback && <><ActionButton onClick={() => onEntityFeedback(asset.id, true)} title="标记为该实体并作为正样本">是实体</ActionButton><ActionButton onClick={() => onEntityFeedback(asset.id, false)} title="标记为非该实体并作为负样本">非实体</ActionButton></>}
         {asset.media_type === 'video' && (
-          <><ActionButton onClick={detectShots} title="检测镜头">{isDetecting ? '切分中…' : '切分'}</ActionButton>{onViewSegments && <ActionButton onClick={() => onViewSegments(asset.id)} title="查看镜头片段">片段</ActionButton>}</>
+          <><ActionButton onClick={detectShots} title="检测镜头">{isDetecting ? '切分中…' : '切分'}</ActionButton>{onViewSegments && <ActionButton onClick={() => onViewSegments(asset.id, matchingSegmentIds)} title={matchingSegmentIds?.length ? `查看 ${matchingSegmentIds.length} 个匹配镜头片段` : '查看镜头片段'}>片段</ActionButton>}</>
         )}
       </div>
     </div>
