@@ -103,6 +103,8 @@ export const exportSelectCollectionFcpxml = (collectionId: string, path: string)
   invoke('export_select_collection_fcpxml', { collectionId, path });
 export const exportSelectCollectionContactSheet = (collectionId: string, path: string): Promise<void> =>
   invoke('export_select_collection_contact_sheet', { collectionId, path });
+export const exportSelectCollectionContactSheetHtml = (collectionId: string, path: string): Promise<void> =>
+  invoke('export_select_collection_contact_sheet_html', { collectionId, path });
 
 export const listEntities = (): Promise<Entity[]> => invoke('list_entities');
 export const createEntity = (request: CreateEntityRequest): Promise<Entity> => invoke('create_entity', { request });

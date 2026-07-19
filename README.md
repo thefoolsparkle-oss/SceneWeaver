@@ -4,6 +4,8 @@
 
 > 扫描队列会拒绝同一素材库的重复 `pending`、`running` 或 `paused` 扫描；暂停任务须恢复或取消后才能重新提交，避免并行扫描覆盖进度或产生多余派生文件。
 
+> Selects 现可导出 PNG 或离线 HTML 联系表。HTML 会把可用缩略图嵌入单个文件，并保留当前排序、文件路径、评分、备注及推荐/片段时间范围，便于审片、打印或发送给协作者。
+
 > 面向内容创作者的本地多模态素材搜索、整理与选片工作台。
 > Local-first Multimodal Media Search & Selects Workspace for Creators.
 

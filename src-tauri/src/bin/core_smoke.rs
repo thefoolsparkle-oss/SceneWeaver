@@ -3,9 +3,9 @@ use std::sync::Arc;
 use sceneweaver_lib::core::cache::CacheManager;
 use sceneweaver_lib::core::db::Database;
 use sceneweaver_lib::core::export::{
-    write_csv, write_edl, write_fcpxml, write_json, write_select_contact_sheet_png,
-    write_select_items_csv, write_select_items_edl, write_select_items_fcpxml,
-    write_select_items_json,
+    write_csv, write_edl, write_fcpxml, write_json, write_select_contact_sheet_html,
+    write_select_contact_sheet_png, write_select_items_csv, write_select_items_edl,
+    write_select_items_fcpxml, write_select_items_json,
 };
 use sceneweaver_lib::core::job_queue::{JobControl, ProgressUpdate};
 use sceneweaver_lib::core::scanner::Scanner;
@@ -557,6 +557,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let contact_sheet_path = root.join("range-selects.png");
     write_select_contact_sheet_png(&contact_sheet_path, &range_items, &cache)?;
     assert_eq!(image::open(&contact_sheet_path)?.width(), 1_000);
+    let contact_sheet_html_path = root.join("range-selects.html");
+    write_select_contact_sheet_html(&contact_sheet_html_path, &range_items, &cache)?;
+    let contact_sheet_html = std::fs::read_to_string(&contact_sheet_html_path)?;
+    assert!(contact_sheet_html.contains("SceneWeaver 选片联系表"));
+    assert!(contact_sheet_html.contains("data:image/jpeg;base64,"));
+    assert!(contact_sheet_html.contains("00:00:01.000"));
 
     db.replace_segments(&primary_asset.id, &[])?;
     assert_eq!(db.list_select_items(&default_collection.id)?.len(), 1);

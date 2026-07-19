@@ -69,5 +69,6 @@ pub fn register_commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + 
         selects::export_select_collection_edl,
         selects::export_select_collection_fcpxml,
         selects::export_select_collection_contact_sheet,
+        selects::export_select_collection_contact_sheet_html,
     ]
 }

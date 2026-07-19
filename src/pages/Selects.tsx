@@ -4,7 +4,7 @@ import { save } from '@tauri-apps/plugin-dialog';
 import {
   createSelectCollection, exportDefaultSelectsCsv, exportDefaultSelectsEdl,
   exportDefaultSelectsFcpxml, exportDefaultSelectsJson, exportSelectCollectionCsv,
-  exportSelectCollectionContactSheet, exportSelectCollectionEdl, exportSelectCollectionFcpxml, exportSelectCollectionJson,
+  exportSelectCollectionContactSheet, exportSelectCollectionContactSheetHtml, exportSelectCollectionEdl, exportSelectCollectionFcpxml, exportSelectCollectionJson,
   listSelectCollections, listSelectItems, moveSelectItem, removeSelectItem,
   reorderSelectItem, updateSelectItem,
 } from '@/api';
@@ -12,7 +12,7 @@ import { formatDuration, formatTimecode } from '@/lib/mediaFormat';
 import type { SelectItem } from '@/types';
 
 const defaultCollectionName = '我的选片';
-type ExportFormat = 'csv' | 'json' | 'edl' | 'fcpxml' | 'png';
+type ExportFormat = 'csv' | 'json' | 'edl' | 'fcpxml' | 'png' | 'html';
 
 export default function Selects() {
   const queryClient = useQueryClient();
@@ -54,6 +54,8 @@ export default function Selects() {
     try {
       if (format === 'png') {
         await exportSelectCollectionContactSheet(activeCollection.id, path);
+      } else if (format === 'html') {
+        await exportSelectCollectionContactSheetHtml(activeCollection.id, path);
       } else if (activeCollection.name === defaultCollectionName) {
         const operation = format === 'csv' ? exportDefaultSelectsCsv : format === 'json' ? exportDefaultSelectsJson : format === 'edl' ? exportDefaultSelectsEdl : exportDefaultSelectsFcpxml;
         await operation(path);
@@ -81,7 +83,7 @@ export default function Selects() {
         <p className="mt-1 text-sm text-neutral-500">从素材库或搜索结果加入默认集合；在这里分组、排序、评分、标注并导出。</p>
       </div>
       {activeCollection && <div className="flex flex-wrap gap-2">
-        {(['csv', 'json', 'edl', 'fcpxml', 'png'] as ExportFormat[]).map((format) => <ExportButton key={format} label={format === 'png' ? '联系表 PNG' : format.toUpperCase()} onClick={() => void exportFile(format)} disabled={!items.data?.length} />)}
+        {(['csv', 'json', 'edl', 'fcpxml', 'png', 'html'] as ExportFormat[]).map((format) => <ExportButton key={format} label={format === 'png' ? '联系表 PNG' : format === 'html' ? '联系表 HTML' : format.toUpperCase()} onClick={() => void exportFile(format)} disabled={!items.data?.length} />)}
       </div>}
     </div>
     {exportError && <p className="mb-3 text-sm text-red-600">导出失败：{exportError}</p>}

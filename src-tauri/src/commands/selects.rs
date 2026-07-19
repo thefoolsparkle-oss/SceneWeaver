@@ -183,6 +183,20 @@ pub async fn export_select_collection_contact_sheet(
     )
 }
 
+#[tauri::command]
+pub async fn export_select_collection_contact_sheet_html(
+    state: State<'_, AppState>,
+    collection_id: String,
+    path: String,
+) -> AppResult<()> {
+    let output_path = validate_output_path(&path)?;
+    crate::core::export::write_select_contact_sheet_html(
+        output_path,
+        &state.db.list_select_items(&collection_id)?,
+        &state.cache,
+    )
+}
+
 fn validate_output_path(path: &str) -> AppResult<&std::path::Path> {
     let output_path = std::path::Path::new(path);
     if !output_path.is_absolute()

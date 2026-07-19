@@ -115,6 +115,68 @@ pub fn write_select_contact_sheet_png(
     Ok(())
 }
 
+/// Writes an offline, print-friendly review sheet. Thumbnails are embedded so
+/// the sheet remains usable when it is sent outside the local cache directory.
+pub fn write_select_contact_sheet_html(
+    path: &Path,
+    items: &[SelectItem],
+    cache: &CacheManager,
+) -> AppResult<()> {
+    require_extension(path, "html")?;
+    let mut output = String::from(
+        "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>SceneWeaver Selects Contact Sheet</title><style>body{margin:32px;background:#18181b;color:#f4f4f5;font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}h1{margin:0 0 4px;font-size:24px}.summary{margin:0 0 24px;color:#a1a1aa}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}.card{overflow:hidden;border:1px solid #3f3f46;border-radius:10px;background:#27272a}.thumb{width:100%;aspect-ratio:16/9;display:grid;place-items:center;background:#18181b;object-fit:contain}.missing{color:#a1a1aa}.body{padding:12px}.name{margin:0 0 8px;font-weight:700;overflow-wrap:anywhere}.meta{margin:4px 0;color:#d4d4d8;overflow-wrap:anywhere}.label{color:#a1a1aa}@media print{body{margin:12mm;background:#fff;color:#18181b}.card{border-color:#a1a1aa;background:#fff}.thumb{background:#f4f4f5}.summary,.label{color:#52525b}.meta{color:#27272a}}</style></head><body><h1>SceneWeaver 选片联系表</h1>",
+    );
+    output.push_str(&format!(
+        "<p class=\"summary\">共 {} 条 · 导出时间范围遵循推荐入/出点，随后使用片段范围。</p><main class=\"grid\">",
+        items.len()
+    ));
+    for (index, item) in items.iter().enumerate() {
+        let (start, end) = select_range(item);
+        let thumbnail_path = item
+            .segment
+            .as_ref()
+            .and_then(|segment| segment.thumbnail_path.as_ref())
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| cache.thumbnail_path(&item.asset.id, "cover"));
+        output.push_str("<article class=\"card\">");
+        if let Some(data_uri) = thumbnail_data_uri(&thumbnail_path) {
+            output.push_str(&format!(
+                "<img class=\"thumb\" src=\"{}\" alt=\"{}\">",
+                data_uri,
+                html_escape(&item.asset.file_name)
+            ));
+        } else {
+            output.push_str("<div class=\"thumb missing\">缩略图不可用</div>");
+        }
+        output.push_str("<div class=\"body\">");
+        output.push_str(&format!(
+            "<p class=\"name\">#{:02} {}</p><p class=\"meta\"><span class=\"label\">范围：</span>{} — {}</p><p class=\"meta\"><span class=\"label\">类型：</span>{}</p><p class=\"meta\"><span class=\"label\">路径：</span>{}</p>",
+            index + 1,
+            html_escape(&item.asset.file_name),
+            timecode(start),
+            timecode(end),
+            html_escape(item.asset.media_type.as_str()),
+            html_escape(&item.asset.file_path),
+        ));
+        if let Some(rating) = item.rating {
+            output.push_str(&format!(
+                "<p class=\"meta\"><span class=\"label\">评分：</span>{}/5</p>",
+                rating
+            ));
+        }
+        if let Some(note) = item.note.as_deref().filter(|note| !note.trim().is_empty()) {
+            output.push_str(&format!(
+                "<p class=\"meta\"><span class=\"label\">备注：</span>{}</p>",
+                html_escape(note)
+            ));
+        }
+        output.push_str("</div></article>");
+    }
+    output.push_str("</main></body></html>\n");
+    std::fs::write(path, output)?;
+    Ok(())
+}
+
 pub fn write_select_items_json(path: &Path, items: &[SelectItem]) -> AppResult<()> {
     require_extension(path, "json")?;
     let values: Vec<serde_json::Value> = items
@@ -241,6 +303,47 @@ fn require_extension(path: &Path, extension: &str) -> AppResult<()> {
         )));
     }
     Ok(())
+}
+
+fn thumbnail_data_uri(path: &Path) -> Option<String> {
+    let bytes = std::fs::read(path).ok()?;
+    let mime = match path.extension().and_then(|extension| extension.to_str())? {
+        extension if extension.eq_ignore_ascii_case("png") => "image/png",
+        extension if extension.eq_ignore_ascii_case("webp") => "image/webp",
+        _ => "image/jpeg",
+    };
+    Some(format!("data:{mime};base64,{}", base64_encode(&bytes)))
+}
+
+fn base64_encode(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let first = chunk[0];
+        let second = *chunk.get(1).unwrap_or(&0);
+        let third = *chunk.get(2).unwrap_or(&0);
+        encoded.push(TABLE[(first >> 2) as usize] as char);
+        encoded.push(TABLE[(((first & 3) << 4) | (second >> 4)) as usize] as char);
+        encoded.push(if chunk.len() > 1 {
+            TABLE[(((second & 15) << 2) | (third >> 6)) as usize] as char
+        } else {
+            '='
+        });
+        encoded.push(if chunk.len() > 2 {
+            TABLE[(third & 63) as usize] as char
+        } else {
+            '='
+        });
+    }
+    encoded
+}
+
+fn html_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 pub fn write_edl(path: &Path, assets: &[Asset]) -> AppResult<()> {
