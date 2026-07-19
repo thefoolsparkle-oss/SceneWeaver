@@ -20,6 +20,23 @@ pub async fn clear_media_cache(state: State<'_, AppState>) -> AppResult<u64> {
 }
 
 #[tauri::command]
+pub async fn export_database_snapshot(state: State<'_, AppState>, path: String) -> AppResult<()> {
+    let output = std::path::Path::new(&path);
+    if !output.is_absolute()
+        || output
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(|value| value.eq_ignore_ascii_case("db"))
+            != Some(true)
+    {
+        return Err(crate::core::error::AppError::InvalidPath(
+            output.to_path_buf(),
+        ));
+    }
+    state.db.export_snapshot(output)
+}
+
+#[tauri::command]
 pub async fn acg_creator_pack_enabled(state: State<'_, AppState>) -> AppResult<bool> {
     state.db.acg_creator_pack_enabled()
 }

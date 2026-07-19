@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { acgCreatorPackEnabled, cacheSize, clearMediaCache, installSemanticModel, reindexSemanticAssets, semanticModelStatus, setAcgCreatorPackEnabled } from '@/api';
+import { save } from '@tauri-apps/plugin-dialog';
+import { acgCreatorPackEnabled, cacheSize, clearMediaCache, exportDatabaseSnapshot, installSemanticModel, reindexSemanticAssets, semanticModelStatus, setAcgCreatorPackEnabled } from '@/api';
 
 export default function Settings() {
   const [darkMode, setDarkMode] = useState(false);
@@ -15,6 +16,7 @@ export default function Settings() {
   const semanticReindex = useMutation({ mutationFn: reindexSemanticAssets });
   const cache = useQuery({ queryKey: ['cacheSize'], queryFn: cacheSize });
   const clearCache = useMutation({ mutationFn: clearMediaCache, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cacheSize'] }) });
+  const exportDatabase = async () => { const path = await save({ defaultPath: 'sceneweaver-backup.db', filters: [{ name: 'SQLite database', extensions: ['db'] }] }); if (path) await exportDatabaseSnapshot(path); };
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
@@ -39,6 +41,7 @@ export default function Settings() {
             />
           </button>
         </div>
+        <div className="flex items-center justify-between border-t pt-4"><div><div className="font-medium">导出本地数据库</div><div className="text-sm text-neutral-500">创建一致的 SQLite 快照，不包含原始媒体或缓存。</div></div><button onClick={() => void exportDatabase()} className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800">导出 .db</button></div>
 
         <div className="flex items-center justify-between gap-4 border-t pt-4">
           <div>

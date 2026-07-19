@@ -36,6 +36,22 @@ impl Database {
         Ok(())
     }
 
+    /// Produces a consistent SQLite snapshot without copying a live WAL file.
+    pub fn export_snapshot(&self, output_path: &Path) -> AppResult<()> {
+        if output_path.exists()
+            || output_path
+                .parent()
+                .filter(|parent| parent.is_dir())
+                .is_none()
+        {
+            return Err(AppError::InvalidPath(output_path.to_path_buf()));
+        }
+        let sql_path = output_path.to_string_lossy().replace('\'', "''");
+        let conn = self.open()?;
+        conn.execute_batch(&format!("VACUUM INTO '{sql_path}'"))?;
+        Ok(())
+    }
+
     // Libraries
     pub fn create_library(&self, library: &Library) -> AppResult<()> {
         let conn = self.open()?;

@@ -163,6 +163,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         updated_at: now,
     };
     db.create_library(&library)?;
+    let snapshot_path = root.join("sceneweaver-backup.db");
+    db.export_snapshot(&snapshot_path)?;
+    let snapshot_library_count: i64 = rusqlite::Connection::open(&snapshot_path)?.query_row(
+        "SELECT COUNT(*) FROM libraries",
+        [],
+        |row| row.get(0),
+    )?;
+    assert_eq!(snapshot_library_count, 1);
+    assert!(db.export_snapshot(&snapshot_path).is_err());
     let job = Job {
         id: uuid::Uuid::new_v4().to_string(),
         job_type: JobType::Scan,

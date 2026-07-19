@@ -43,6 +43,7 @@ pub fn register_commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + 
         system::get_app_stats,
         system::cache_size,
         system::clear_media_cache,
+        system::export_database_snapshot,
         system::acg_creator_pack_enabled,
         system::set_acg_creator_pack_enabled,
         system::semantic_model_status,
