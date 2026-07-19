@@ -17,15 +17,17 @@ use crate::models::{Asset, AssetStatus, IndexProfile, Library, MediaType};
 
 pub struct Scanner {
     db: Arc<Database>,
+    cache: CacheManager,
     thumbnail: ThumbnailService,
 }
 
 impl Scanner {
     pub fn new(db: Arc<Database>, cache: Arc<CacheManager>) -> Self {
-        let thumb_cache = CacheManager::new(cache.root());
+        let cache = CacheManager::new(cache.root());
         Self {
             db,
-            thumbnail: ThumbnailService::new(thumb_cache),
+            thumbnail: ThumbnailService::new(cache.clone()),
+            cache,
         }
     }
 
@@ -274,6 +276,9 @@ impl Scanner {
         };
 
         self.db.create_or_update_asset(&asset)?;
+        if media_type == MediaType::Video {
+            self.index_video_derivatives(&asset, path);
+        }
         let embedding_source = match media_type {
             MediaType::Image => Some(path.to_path_buf()),
             MediaType::Video => thumbnail,
@@ -296,6 +301,36 @@ impl Scanner {
         self.db
             .mark_asset_seen(&library.id, &normalized, scan_marker)?;
         Ok(true)
+    }
+
+    /// Scene boundaries and playable derivatives are part of a video's
+    /// indexed representation, not a UI-only action. Failure remains
+    /// non-fatal: the source asset and its metadata stay searchable, and the
+    /// user can retry manual shot detection after fixing FFmpeg.
+    fn index_video_derivatives(&self, asset: &Asset, source: &Path) {
+        let Some(duration_ms) = asset.duration_ms else {
+            log::warn!("跳过视频片段派生：时长未知 {}", source.display());
+            return;
+        };
+        let mut segments =
+            match crate::core::scene_detect::detect_shots(&asset.id, source, duration_ms) {
+                Ok(segments) => segments,
+                Err(error) => {
+                    log::warn!("视频镜头检测降级 {}: {error}", source.display());
+                    return;
+                }
+            };
+        if let Err(error) = crate::core::video_derivatives::generate_for_segments(
+            &self.cache,
+            source,
+            &asset.id,
+            &mut segments,
+        ) {
+            log::warn!("视频关键帧/预览派生降级 {}: {error}", source.display());
+        }
+        if let Err(error) = self.db.replace_segments(&asset.id, &segments) {
+            log::warn!("持久化视频镜头片段失败 {}: {error}", source.display());
+        }
     }
 }
 
