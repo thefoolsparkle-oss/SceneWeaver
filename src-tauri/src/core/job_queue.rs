@@ -199,20 +199,10 @@ impl JobQueue {
     }
 
     pub fn recover(&self) -> AppResult<()> {
-        let active = self.db.list_active_jobs()?;
-        for mut job in active {
-            match job.status {
-                JobStatus::Running => {
-                    job.status = JobStatus::Pending;
-                    job.updated_at = Utc::now().timestamp_millis();
-                    self.db.update_job(&job)?;
-                    if let Some(library_id) = &job.library_id {
-                        self.db
-                            .update_library_status(library_id, LibraryStatus::Idle, None)?;
-                    }
-                }
-                JobStatus::Paused => {}
-                _ => {}
+        for job in self.db.recover_interrupted_jobs()? {
+            if let Some(library_id) = &job.library_id {
+                self.db
+                    .update_library_status(library_id, LibraryStatus::Idle, None)?;
             }
         }
         self.start_loop();

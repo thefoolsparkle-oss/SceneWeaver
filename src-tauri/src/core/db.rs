@@ -1494,6 +1494,40 @@ impl Database {
         rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
     }
 
+    /// Converts jobs that were running when the process stopped into pending
+    /// work. Paused jobs are intentionally untouched: pausing is an explicit
+    /// user decision and must survive an application restart.
+    pub fn recover_interrupted_jobs(&self) -> AppResult<Vec<Job>> {
+        let mut conn = self.open()?;
+        let transaction = conn.transaction()?;
+        let mut statement = transaction.prepare(
+            "SELECT id, job_type, library_id, asset_id, status, priority, progress,
+                    current_step, checkpoint_json, error_code, error_message,
+                    started_at, finished_at, created_at, updated_at
+             FROM jobs WHERE status = 'running' ORDER BY created_at ASC",
+        )?;
+        let rows = statement.query_map([], row_to_job)?;
+        let mut recovered = rows.collect::<Result<Vec<_>, _>>()?;
+        drop(statement);
+        let now = chrono::Utc::now().timestamp_millis();
+        for job in &mut recovered {
+            job.status = JobStatus::Pending;
+            job.current_step = "等待恢复（上次运行中断）".to_string();
+            job.updated_at = now;
+            transaction.execute(
+                "UPDATE jobs SET status = ?1, current_step = ?2, updated_at = ?3 WHERE id = ?4",
+                params![
+                    job.status.as_str(),
+                    job.current_step,
+                    job.updated_at,
+                    job.id
+                ],
+            )?;
+        }
+        transaction.commit()?;
+        Ok(recovered)
+    }
+
     pub fn update_job(&self, job: &Job) -> AppResult<()> {
         self.create_job(job)
     }

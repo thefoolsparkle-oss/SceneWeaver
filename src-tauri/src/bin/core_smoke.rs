@@ -170,6 +170,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         updated_at: now,
     };
     db.create_job(&job)?;
+    let interrupted_job = Job {
+        id: uuid::Uuid::new_v4().to_string(),
+        status: JobStatus::Running,
+        current_step: "扫描中".to_string(),
+        checkpoint_json: Some("{\"processed\":3,\"total\":9}".to_string()),
+        ..job.clone()
+    };
+    db.create_job(&interrupted_job)?;
     let reopened = Database::new(root.join("sceneweaver.db"));
     assert_eq!(
         reopened.get_job(&job.id)?.expect("job must persist").status,
@@ -179,6 +187,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .list_active_jobs()?
         .iter()
         .all(|active_job| active_job.id != job.id));
+    let recovered = reopened.recover_interrupted_jobs()?;
+    assert_eq!(recovered.len(), 1, "only running jobs may be recovered");
+    assert_eq!(recovered[0].id, interrupted_job.id);
+    assert_eq!(
+        recovered[0].checkpoint_json,
+        interrupted_job.checkpoint_json
+    );
+    assert_eq!(
+        reopened
+            .get_job(&interrupted_job.id)?
+            .expect("interrupted job must persist")
+            .status,
+        JobStatus::Pending
+    );
+    assert_eq!(
+        reopened
+            .get_job(&job.id)?
+            .expect("paused job must persist")
+            .status,
+        JobStatus::Paused
+    );
     let scanner = Scanner::new(Arc::clone(&db), Arc::clone(&cache));
     let control = JobControl::new();
     let progress = SilentProgress;
