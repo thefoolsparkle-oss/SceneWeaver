@@ -592,9 +592,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .any(|segment| segment.subtitle_present.is_some()));
 
         // Subtitle is a structured segment signal, not merely a filename
-        // keyword: both text and semantic retrieval must apply it as a hard
-        // SQLite constraint.
+        // keyword. Subtitle, black-frame and blur labels must be usable as
+        // hard SQLite constraints even by semantic/entity retrieval paths.
         video_segments[0].subtitle_present = Some(true);
+        video_segments[0].black_frame_score = Some(0.9);
+        video_segments[0].blur_score = Some(0.9);
         db.replace_segments(&video_asset.id, &video_segments)?;
         let subtitle_request = SearchRequest {
             raw_query: String::new(),
@@ -615,6 +617,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         assert!(db
             .assets_matching_nonsemantic_filters(&exclude_subtitle_request, 10)?
+            .iter()
+            .all(|asset| asset.id != video_asset.id));
+
+        let quality_label_request = SearchRequest {
+            raw_query: String::new(),
+            must: vec!["黑帧".to_string()],
+            should: vec!["模糊".to_string()],
+            must_not: vec![],
+            media_types: vec!["video".to_string()],
+            min_quality_score: None,
+        };
+        assert!(db
+            .search_assets_with_conditions(&quality_label_request, 10)?
+            .iter()
+            .any(|asset| asset.id == video_asset.id));
+        let exclude_blurry_request = SearchRequest {
+            must: vec![],
+            should: vec![],
+            must_not: vec!["blur".to_string()],
+            ..quality_label_request
+        };
+        assert!(db
+            .assets_matching_nonsemantic_filters(&exclude_blurry_request, 10)?
             .iter()
             .all(|asset| asset.id != video_asset.id));
     }

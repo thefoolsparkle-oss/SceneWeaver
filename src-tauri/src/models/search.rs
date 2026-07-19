@@ -1,4 +1,4 @@
-use super::Asset;
+use super::{Asset, Segment};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,6 +29,8 @@ pub struct SearchResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SegmentLabel {
     Subtitle,
+    BlackFrame,
+    Blurry,
 }
 
 pub fn segment_label_for_term(term: &str) -> Option<SegmentLabel> {
@@ -36,6 +38,10 @@ pub fn segment_label_for_term(term: &str) -> Option<SegmentLabel> {
         "字幕" | "subtitle" | "subtitles" | "caption" | "captions" => {
             Some(SegmentLabel::Subtitle)
         }
+        "黑帧" | "黑屏" | "black frame" | "black frames" | "black screen" => {
+            Some(SegmentLabel::BlackFrame)
+        }
+        "模糊" | "blur" | "blurry" | "out of focus" => Some(SegmentLabel::Blurry),
         _ => None,
     }
 }
@@ -45,6 +51,26 @@ impl SegmentLabel {
         match (self, positive) {
             (SegmentLabel::Subtitle, true) => "EXISTS (SELECT 1 FROM segments WHERE segments.asset_id = assets.id AND segments.subtitle_present = 1)",
             (SegmentLabel::Subtitle, false) => "NOT EXISTS (SELECT 1 FROM segments WHERE segments.asset_id = assets.id AND segments.subtitle_present = 1)",
+            (SegmentLabel::BlackFrame, true) => "EXISTS (SELECT 1 FROM segments WHERE segments.asset_id = assets.id AND segments.black_frame_score >= 0.85)",
+            (SegmentLabel::BlackFrame, false) => "NOT EXISTS (SELECT 1 FROM segments WHERE segments.asset_id = assets.id AND segments.black_frame_score >= 0.85)",
+            (SegmentLabel::Blurry, true) => "EXISTS (SELECT 1 FROM segments WHERE segments.asset_id = assets.id AND segments.blur_score >= 0.80)",
+            (SegmentLabel::Blurry, false) => "NOT EXISTS (SELECT 1 FROM segments WHERE segments.asset_id = assets.id AND segments.blur_score >= 0.80)",
+        }
+    }
+
+    pub fn matches_segment(self, segment: &Segment) -> bool {
+        match self {
+            SegmentLabel::Subtitle => segment.subtitle_present == Some(true),
+            SegmentLabel::BlackFrame => segment.black_frame_score.unwrap_or_default() >= 0.85,
+            SegmentLabel::Blurry => segment.blur_score.unwrap_or_default() >= 0.80,
+        }
+    }
+
+    pub fn explanation(self) -> &'static str {
+        match self {
+            SegmentLabel::Subtitle => "本地字幕提示",
+            SegmentLabel::BlackFrame => "本地黑帧提示（黑帧比例 ≥ 85%）",
+            SegmentLabel::Blurry => "本地低细节/模糊提示（模糊分 ≥ 80%）",
         }
     }
 }

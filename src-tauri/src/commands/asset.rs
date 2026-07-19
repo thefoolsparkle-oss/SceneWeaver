@@ -393,31 +393,30 @@ fn apply_segment_label_explanations(
     segments: &[Segment],
 ) {
     for term in &request.must {
-        if is_subtitle_label(term, segments) {
+        if let Some(label) = matching_segment_label(term, segments) {
             result
                 .match_reasons
-                .push(format!("满足必须条件：{term}（本地字幕提示）"));
+                .push(format!("满足必须条件：{term}（{}）", label.explanation()));
             result.score += 2.0;
         }
     }
     for term in &request.should {
-        if is_subtitle_label(term, segments) {
+        if let Some(label) = matching_segment_label(term, segments) {
             result.unmet_should.retain(|unmet| unmet != term);
             result
                 .match_reasons
-                .push(format!("命中偏好条件：{term}（本地字幕提示）"));
+                .push(format!("命中偏好条件：{term}（{}）", label.explanation()));
             result.score += 1.0;
         }
     }
 }
 
-fn is_subtitle_label(term: &str, segments: &[Segment]) -> bool {
-    matches!(
-        crate::models::segment_label_for_term(term),
-        Some(crate::models::SegmentLabel::Subtitle)
-    ) && segments
-        .iter()
-        .any(|segment| segment.subtitle_present == Some(true))
+fn matching_segment_label(term: &str, segments: &[Segment]) -> Option<crate::models::SegmentLabel> {
+    crate::models::segment_label_for_term(term).filter(|label| {
+        segments
+            .iter()
+            .any(|segment| label.matches_segment(segment))
+    })
 }
 
 fn explain_search_result(
