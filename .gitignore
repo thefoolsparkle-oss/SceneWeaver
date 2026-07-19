@@ -1,0 +1,11 @@
+# JavaScript dependencies and production output
+node_modules/
+dist/
+
+# Rust/Tauri build output and local logs
+src-tauri/target/
+*.log
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

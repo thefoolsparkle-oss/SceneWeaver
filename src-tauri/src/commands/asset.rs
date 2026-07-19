@@ -1,0 +1,501 @@
+use std::collections::HashSet;
+
+use tauri::State;
+
+use crate::core::app_state::AppState;
+use crate::core::error::AppResult;
+use crate::models::Asset;
+
+#[tauri::command]
+pub async fn list_assets(state: State<'_, AppState>, library_id: String) -> AppResult<Vec<Asset>> {
+    let mut assets = state.db.list_assets(&library_id)?;
+    attach_thumbnail_data(&state, &mut assets);
+    Ok(assets)
+}
+
+#[tauri::command]
+pub async fn get_asset(state: State<'_, AppState>, id: String) -> AppResult<Option<Asset>> {
+    let mut asset = state.db.get_asset(&id)?;
+    if let Some(asset) = asset.as_mut() {
+        attach_thumbnail_data_url(&state, asset);
+    }
+    Ok(asset)
+}
+
+#[tauri::command]
+pub async fn list_segments(
+    state: State<'_, AppState>,
+    asset_id: String,
+) -> AppResult<Vec<crate::models::Segment>> {
+    let mut segments = state.db.list_segments(&asset_id)?;
+    for segment in &mut segments {
+        attach_segment_thumbnail_data_url(&state, segment);
+    }
+    Ok(segments)
+}
+
+#[tauri::command]
+pub async fn detect_asset_shots(
+    state: State<'_, AppState>,
+    asset_id: String,
+) -> AppResult<Vec<crate::models::Segment>> {
+    let asset = state
+        .db
+        .get_asset(&asset_id)?
+        .ok_or_else(|| crate::core::error::AppError::AssetNotFound(asset_id.clone()))?;
+    if asset.media_type != crate::models::MediaType::Video {
+        return Err(crate::core::error::AppError::Other(
+            "只能对视频进行镜头检测".to_string(),
+        ));
+    }
+    let duration = asset.duration_ms.ok_or_else(|| {
+        crate::core::error::AppError::Other("视频时长未知，无法切分镜头".to_string())
+    })?;
+    let asset_for_worker = asset.clone();
+    let cache = std::sync::Arc::clone(&state.cache);
+    let segments = tokio::task::spawn_blocking(move || {
+        let mut segments = crate::core::scene_detect::detect_shots(
+            &asset_for_worker.id,
+            std::path::Path::new(&asset_for_worker.file_path),
+            duration,
+        )?;
+        crate::core::video_derivatives::generate_for_segments(
+            &cache,
+            std::path::Path::new(&asset_for_worker.file_path),
+            &asset_for_worker.id,
+            &mut segments,
+        )?;
+        Ok::<_, crate::core::error::AppError>(segments)
+    })
+    .await
+    .map_err(|error| {
+        crate::core::error::AppError::Other(format!("视频处理任务异常终止: {error}"))
+    })??;
+    state.db.replace_segments(&asset.id, &segments)?;
+    Ok(segments)
+}
+
+#[tauri::command]
+pub async fn segment_preview_data_url(
+    state: State<'_, AppState>,
+    asset_id: String,
+    segment_id: String,
+) -> AppResult<Option<String>> {
+    let segment = state
+        .db
+        .list_segments(&asset_id)?
+        .into_iter()
+        .find(|segment| segment.id == segment_id)
+        .ok_or_else(|| {
+            crate::core::error::AppError::Other("镜头片段不存在或不属于此素材".to_string())
+        })?;
+    let Some(preview_path) = segment.preview_path else {
+        return Ok(None);
+    };
+    let cache_root = std::fs::canonicalize(state.cache.root())?;
+    let preview_path = std::fs::canonicalize(preview_path)?;
+    if !preview_path.starts_with(&cache_root)
+        || preview_path.extension().and_then(|ext| ext.to_str()) != Some("mp4")
+    {
+        return Err(crate::core::error::AppError::InvalidPath(preview_path));
+    }
+    let bytes = std::fs::read(&preview_path)?;
+    const MAX_PREVIEW_RESPONSE_BYTES: usize = 6 * 1024 * 1024;
+    if bytes.len() > MAX_PREVIEW_RESPONSE_BYTES {
+        return Err(crate::core::error::AppError::Other(
+            "预览缓存过大，无法安全载入；请重新生成预览".to_string(),
+        ));
+    }
+    Ok(Some(format!(
+        "data:video/mp4;base64,{}",
+        base64_encode(&bytes)
+    )))
+}
+
+#[tauri::command]
+pub async fn add_segment_to_default_selects(
+    state: State<'_, AppState>,
+    asset_id: String,
+    segment_id: String,
+) -> AppResult<()> {
+    state
+        .db
+        .add_segment_to_default_selects(&asset_id, &segment_id)
+}
+
+#[tauri::command]
+pub async fn add_asset_acg_tag(
+    state: State<'_, AppState>,
+    asset_id: String,
+    value: String,
+) -> AppResult<Vec<String>> {
+    state.db.add_asset_acg_tag(&asset_id, &value)
+}
+
+#[tauri::command]
+pub async fn list_asset_acg_tags(
+    state: State<'_, AppState>,
+    asset_id: String,
+) -> AppResult<Vec<String>> {
+    state.db.asset_acg_tags(&asset_id)
+}
+
+#[tauri::command]
+pub async fn remove_asset_acg_tag(
+    state: State<'_, AppState>,
+    asset_id: String,
+    value: String,
+) -> AppResult<()> {
+    state.db.remove_asset_acg_tag(&asset_id, &value)
+}
+
+#[tauri::command]
+pub async fn search_assets(
+    state: State<'_, AppState>,
+    request: crate::models::SearchRequest,
+) -> AppResult<Vec<crate::models::SearchResult>> {
+    let started = std::time::Instant::now();
+    let mut assets = state.db.search_assets_with_conditions(&request, 100)?;
+    let mut semantic_ids = HashSet::new();
+    let semantic_status = crate::providers::semantic_clip::status(
+        &state.cache.models_path(),
+        &crate::providers::semantic_clip::default_runtime_path(),
+    );
+    if semantic_status.ready {
+        if let Some(prompt) =
+            crate::providers::semantic_clip::semantic_query_prompt(&request.raw_query)
+        {
+            if let Ok(query_vector) = crate::providers::semantic_clip::embed_text(
+                &state.cache.models_path(),
+                &crate::providers::semantic_clip::default_runtime_path(),
+                &prompt,
+            ) {
+                let allowed_ids = state
+                    .db
+                    .assets_matching_nonsemantic_filters(&request, 500)?
+                    .into_iter()
+                    .map(|asset| asset.id)
+                    .collect::<HashSet<_>>();
+                for semantic_asset in state.db.assets_for_embedding_provider(
+                    crate::providers::semantic_clip::PROVIDER_ID,
+                    &query_vector,
+                    100,
+                )? {
+                    if allowed_ids.contains(&semantic_asset.id) {
+                        semantic_ids.insert(semantic_asset.id.clone());
+                        if !assets.iter().any(|asset| asset.id == semantic_asset.id) {
+                            assets.push(semantic_asset);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let mut visual_fallback: Option<&str> = None;
+    if assets.is_empty() {
+        if let Some(query_vector) =
+            crate::providers::visual_embedding::embed_color_query(&request.raw_query)
+        {
+            let allowed_ids = state
+                .db
+                .assets_matching_nonsemantic_filters(&request, 500)?
+                .into_iter()
+                .map(|asset| asset.id)
+                .collect::<HashSet<_>>();
+            assets = state
+                .db
+                .assets_for_visual_query(&query_vector, 100)?
+                .into_iter()
+                .filter(|asset| allowed_ids.contains(&asset.id))
+                .collect();
+            visual_fallback = (!assets.is_empty()).then_some("命中本地颜色视觉特征");
+        }
+    }
+    state
+        .db
+        .record_search(&request, assets.len(), started.elapsed().as_millis() as i64)?;
+    attach_thumbnail_data(&state, &mut assets);
+    Ok(assets
+        .into_iter()
+        .map(|asset| {
+            let visual_reason = if semantic_ids.contains(&asset.id) {
+                Some("命中本地 CLIP 图文语义向量")
+            } else {
+                visual_fallback
+            };
+            explain_search_result(asset, &request, visual_reason)
+        })
+        .collect())
+}
+
+fn explain_search_result(
+    asset: Asset,
+    request: &crate::models::SearchRequest,
+    visual_fallback: Option<&str>,
+) -> crate::models::SearchResult {
+    let searchable = format!("{} {}", asset.file_name, asset.file_path).to_lowercase();
+    let mut match_reasons = Vec::new();
+    let mut score = 0.0;
+    if let Some(reason) = visual_fallback {
+        match_reasons.push(reason.to_string());
+        score += 1.0;
+    }
+    for term in &request.must {
+        if searchable.contains(&term.to_lowercase()) {
+            match_reasons.push(format!("满足必须条件：{term}"));
+            score += 2.0;
+        }
+    }
+    let unmet_should = request
+        .should
+        .iter()
+        .filter(|term| !searchable.contains(&term.to_lowercase()))
+        .cloned()
+        .collect::<Vec<_>>();
+    for term in &request.should {
+        if searchable.contains(&term.to_lowercase()) {
+            match_reasons.push(format!("命中偏好条件：{term}"));
+            score += 1.0;
+        }
+    }
+    if match_reasons.is_empty() {
+        match_reasons.push("按关键词召回".to_string());
+    }
+    crate::models::SearchResult {
+        asset,
+        score,
+        match_reasons,
+        unmet_should,
+    }
+}
+
+#[tauri::command]
+pub async fn find_similar_assets(
+    state: State<'_, AppState>,
+    asset_id: String,
+) -> AppResult<Vec<Asset>> {
+    let mut assets = state.db.similar_assets(&asset_id, 100)?;
+    attach_thumbnail_data(&state, &mut assets);
+    Ok(assets)
+}
+
+#[tauri::command]
+pub async fn find_similar_by_reference_image(
+    state: State<'_, AppState>,
+    image_path: String,
+) -> AppResult<Vec<Asset>> {
+    let path = std::path::PathBuf::from(image_path);
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_default();
+    if !path.is_absolute()
+        || !path.is_file()
+        || !matches!(
+            extension.as_str(),
+            "jpg" | "jpeg" | "png" | "webp" | "gif" | "bmp"
+        )
+    {
+        return Err(crate::core::error::AppError::InvalidPath(path));
+    }
+    let semantic_status = crate::providers::semantic_clip::status(
+        &state.cache.models_path(),
+        &crate::providers::semantic_clip::default_runtime_path(),
+    );
+    let mut assets = if semantic_status.ready {
+        match crate::providers::semantic_clip::embed_image(
+            &state.cache.models_path(),
+            &crate::providers::semantic_clip::default_runtime_path(),
+            &path,
+        ) {
+            Ok(vector) => state.db.assets_for_embedding_provider(
+                crate::providers::semantic_clip::PROVIDER_ID,
+                &vector,
+                100,
+            )?,
+            Err(error) => {
+                log::warn!("本地语义参考图检索降级为颜色索引: {error}");
+                let vector = crate::providers::visual_embedding::embed_image(&path)?;
+                state.db.assets_for_visual_query(&vector, 100)?
+            }
+        }
+    } else {
+        let vector = crate::providers::visual_embedding::embed_image(&path)?;
+        state.db.assets_for_visual_query(&vector, 100)?
+    };
+    attach_thumbnail_data(&state, &mut assets);
+    Ok(assets)
+}
+
+#[tauri::command]
+pub async fn recent_searches(state: State<'_, AppState>) -> AppResult<Vec<String>> {
+    state.db.recent_searches()
+}
+
+#[tauri::command]
+pub async fn toggle_favorite(state: State<'_, AppState>, asset_id: String) -> AppResult<bool> {
+    state.db.toggle_favorite(&asset_id)
+}
+
+#[tauri::command]
+pub async fn favorite_asset_ids(state: State<'_, AppState>) -> AppResult<Vec<String>> {
+    state.db.favorite_asset_ids()
+}
+
+#[tauri::command]
+pub async fn add_to_default_selects(state: State<'_, AppState>, asset_id: String) -> AppResult<()> {
+    state.db.add_to_default_selects(&asset_id)
+}
+
+#[tauri::command]
+pub async fn default_select_assets(state: State<'_, AppState>) -> AppResult<Vec<Asset>> {
+    let mut assets = state.db.default_select_assets()?;
+    attach_thumbnail_data(&state, &mut assets);
+    Ok(assets)
+}
+
+#[tauri::command]
+pub async fn export_default_selects_csv(state: State<'_, AppState>, path: String) -> AppResult<()> {
+    let output_path = std::path::Path::new(&path);
+    if !output_path.is_absolute()
+        || output_path
+            .parent()
+            .filter(|parent| parent.is_dir())
+            .is_none()
+    {
+        return Err(crate::core::error::AppError::InvalidPath(
+            output_path.to_path_buf(),
+        ));
+    }
+    crate::core::export::write_select_items_csv(output_path, &state.db.default_select_items()?)
+}
+
+#[tauri::command]
+pub async fn export_default_selects_json(
+    state: State<'_, AppState>,
+    path: String,
+) -> AppResult<()> {
+    let output_path = std::path::Path::new(&path);
+    if !output_path.is_absolute()
+        || output_path
+            .parent()
+            .filter(|parent| parent.is_dir())
+            .is_none()
+    {
+        return Err(crate::core::error::AppError::InvalidPath(
+            output_path.to_path_buf(),
+        ));
+    }
+    crate::core::export::write_select_items_json(output_path, &state.db.default_select_items()?)
+}
+
+#[tauri::command]
+pub async fn export_default_selects_edl(state: State<'_, AppState>, path: String) -> AppResult<()> {
+    let output_path = std::path::Path::new(&path);
+    if !output_path.is_absolute()
+        || output_path
+            .parent()
+            .filter(|parent| parent.is_dir())
+            .is_none()
+    {
+        return Err(crate::core::error::AppError::InvalidPath(
+            output_path.to_path_buf(),
+        ));
+    }
+    crate::core::export::write_select_items_edl(output_path, &state.db.default_select_items()?)
+}
+
+#[tauri::command]
+pub async fn export_default_selects_fcpxml(
+    state: State<'_, AppState>,
+    path: String,
+) -> AppResult<()> {
+    let output_path = std::path::Path::new(&path);
+    if !output_path.is_absolute()
+        || output_path
+            .parent()
+            .filter(|parent| parent.is_dir())
+            .is_none()
+    {
+        return Err(crate::core::error::AppError::InvalidPath(
+            output_path.to_path_buf(),
+        ));
+    }
+    crate::core::export::write_select_items_fcpxml(output_path, &state.db.default_select_items()?)
+}
+
+fn attach_thumbnail_data(state: &AppState, assets: &mut [Asset]) {
+    for asset in assets {
+        attach_thumbnail_data_url(state, asset);
+    }
+}
+
+fn attach_thumbnail_data_url(state: &AppState, asset: &mut Asset) {
+    let path = state.cache.thumbnail_path(&asset.id, "cover");
+    if let Ok(bytes) = std::fs::read(path) {
+        asset.thumbnail_data_url =
+            Some(format!("data:image/jpeg;base64,{}", base64_encode(&bytes)));
+    }
+}
+
+fn attach_segment_thumbnail_data_url(state: &AppState, segment: &mut crate::models::Segment) {
+    let Some(path) = segment.thumbnail_path.as_ref() else {
+        return;
+    };
+    let Ok(cache_root) = std::fs::canonicalize(state.cache.root()) else {
+        return;
+    };
+    let Ok(path) = std::fs::canonicalize(path) else {
+        return;
+    };
+    if !path.starts_with(&cache_root)
+        || !matches!(
+            path.extension().and_then(|extension| extension.to_str()),
+            Some("jpg") | Some("jpeg")
+        )
+    {
+        return;
+    }
+    const MAX_THUMBNAIL_RESPONSE_BYTES: usize = 3 * 1024 * 1024;
+    if let Ok(bytes) = std::fs::read(path) {
+        if bytes.len() <= MAX_THUMBNAIL_RESPONSE_BYTES {
+            segment.thumbnail_data_url =
+                Some(format!("data:image/jpeg;base64,{}", base64_encode(&bytes)));
+        }
+    }
+}
+
+fn base64_encode(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let first = chunk[0];
+        let second = *chunk.get(1).unwrap_or(&0);
+        let third = *chunk.get(2).unwrap_or(&0);
+        encoded.push(TABLE[(first >> 2) as usize] as char);
+        encoded.push(TABLE[(((first & 0b0000_0011) << 4) | (second >> 4)) as usize] as char);
+        encoded.push(if chunk.len() > 1 {
+            TABLE[(((second & 0b0000_1111) << 2) | (third >> 6)) as usize] as char
+        } else {
+            '='
+        });
+        encoded.push(if chunk.len() > 2 {
+            TABLE[(third & 0b0011_1111) as usize] as char
+        } else {
+            '='
+        });
+    }
+    encoded
+}
+
+#[cfg(test)]
+mod tests {
+    use super::base64_encode;
+
+    #[test]
+    fn encodes_thumbnail_bytes_as_base64() {
+        assert_eq!(base64_encode(b"Man"), "TWFu");
+        assert_eq!(base64_encode(b"M"), "TQ==");
+    }
+}
