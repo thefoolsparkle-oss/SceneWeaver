@@ -111,6 +111,8 @@
 
 `SCENEWEAVER_DOWNLOAD_SEMANTIC_MODEL=1 cargo run --manifest-path src-tauri/Cargo.toml --bin semantic_model_smoke` 仅在环境变量明确确认时从模型源下载配对 CLIP 编码器到独立临时目录，实际生成 512 维图像与文本向量、写入 SQLite 后验证文本检索和 Entity 语义参考检索，最后清理临时模型与数据库。它不属于默认测试，确保普通用户和 CI 不会被隐式下载权重。
 
+`.github/workflows/ci.yml` 在 Windows GitHub Runner 对 `main` 推送和 Pull Request 执行前端 lint/test/build、Rust 格式检查、Rust 测试编译和默认 `core_smoke`。语义模型下载 smoke、FFmpeg 派生断言和安装器交互 smoke 仍保留给显式本地验证。
+
 2026-07-19 已实际运行该 smoke：图像与文本各返回 512 维向量，图文余弦值为 0.279；SQLite 文本检索和 Entity 语义参考检索均返回目标素材，临时模型目录已由 smoke 清理。
 
 ## E2E 测试

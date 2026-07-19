@@ -146,6 +146,7 @@ ACG 查询预设已接入搜索页（角色近景、雨夜侧脸、战斗无 UI/
 - 前端：`npm.cmd run lint` 通过；`npm.cmd test` 通过（8 tests）；`npm.cmd run build` 通过。
 - Rust：新增路径、指纹、帧率、任务控制、导出、选片标注、视频派生参数单元测试；本轮在补齐 MSYS2 MinGW-w64 的 `windres` 与 `gcc` 后，`cargo test --no-run` 已成功编译；测试二进制运行仍受 GNU/Tauri Windows `STATUS_ENTRYPOINT_NOT_FOUND` 阻塞。
 - 集成测试、E2E 测试尚未完成。
+- 已新增 GitHub Actions Windows 质量门禁：在 `main` 推送、PR 和手动触发时执行前端 lint/test/build、Rust 格式/测试编译和不下载模型的 `core_smoke`；首次远端运行结果待 GitHub Actions 回传。
 
 ## 构建结果
 

@@ -24,7 +24,7 @@
 - 当前 GNU/Tauri 测试二进制会以 `STATUS_ENTRYPOINT_NOT_FOUND` 启动失败；源码可编译，但 Rust 单元测试尚无法在此环境执行。`core_smoke` 可作为独立二进制实际运行。
 - 使用 GNU 工具链时，需要将 `C:\msys64\mingw64\bin` 加入启动 Cargo 的当前 shell `PATH`，以提供 `gcc` 与 `windres`。
 - Windows release EXE 与当前代码生成的 NSIS 安装包均已验证；MSI、干净环境的交互式安装、卸载和升级仍待验证。
-- 未配置 CI，后续需补充 GitHub Actions。
+- 已配置 GitHub Actions Windows 质量门禁，但首次远端执行结果尚待 GitHub Actions 回传；它默认不下载语义模型，也不安装 FFmpeg，因此不会替代本地的模型、视频派生或安装器 smoke。
 - 标准库超时等待会让扫描流程在 30 秒后继续，但当前开发版无法强制终止已经卡住的 FFmpeg/ffprobe 子进程；Windows sidecar supervisor 将处理该限制。
 
 ## 待验证项
