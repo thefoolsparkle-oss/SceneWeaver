@@ -114,7 +114,7 @@
 
 `.github/workflows/ci.yml` 在 Windows GitHub Runner 对 `main` 推送和 Pull Request 执行前端 lint/test/build、Rust 格式检查、Rust 测试编译和默认 `core_smoke`。语义模型下载 smoke、FFmpeg 派生断言和安装器交互 smoke 仍保留给显式本地验证。
 
-CI 必须从干净工作目录通过：`build.rs` 会在 Tauri 读取 `bundle.resources` 前，从 Cargo.lock 锁定的 `webview2-com-sys` x64 依赖暂存 `WebView2Loader.dll`。这覆盖了“本机旧 target 文件掩盖 DLL 缺失”的回归场景；本地 NSIS smoke 继续验证安装后的 DLL 与 EXE 同级且可启动。
+CI 必须从干净工作目录通过：`build.rs` 会在 Tauri 读取 `bundle.resources` 前，从 Cargo.lock 锁定的 `webview2-com-sys` x64 依赖暂存 `WebView2Loader.dll`。这覆盖了“本机旧 target 文件掩盖 DLL 缺失”的回归场景；2026-07-19 的 Windows GitHub Runner 已实际通过该编译路径与默认 core smoke。本地 NSIS smoke 继续验证安装后的 DLL 与 EXE 同级且可启动。
 
 2026-07-19 已实际运行该 smoke：图像与文本各返回 512 维向量，图文余弦值为 0.279；SQLite 文本检索和 Entity 语义参考检索均返回目标素材，临时模型目录已由 smoke 清理。
 

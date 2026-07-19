@@ -61,7 +61,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 当前 GNU/Tauri 开发环境会使 Rust 测试二进制在启动时失败；请以 `cargo test --no-run --manifest-path src-tauri/Cargo.toml` 验证 Rust 测试编译，完整限制见 [`docs/KNOWN_LIMITATIONS.md`](./docs/KNOWN_LIMITATIONS.md)。
 
-推送到 `main` 或创建 Pull Request 时，[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) 会在 Windows Runner 自动执行前端 lint/test/build、Rust 格式与测试编译，以及不依赖模型下载的 `core_smoke`。首次远端执行结果以 GitHub Actions 页面为准。
+推送到 `main` 或创建 Pull Request 时，[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) 会在 Windows Runner 自动执行前端 lint/test/build、Rust 格式与测试编译，以及不依赖模型下载的 `core_smoke`。2026-07-19 已在干净 Windows Runner 实际通过完整质量门禁；后续结果以 GitHub Actions 页面为准。
 
 如需运行不依赖窗口的真实核心集成验证（会在系统临时目录创建并清理测试图片），执行：
 

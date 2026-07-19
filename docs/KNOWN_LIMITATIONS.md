@@ -24,7 +24,7 @@
 - 当前 GNU/Tauri 测试二进制会以 `STATUS_ENTRYPOINT_NOT_FOUND` 启动失败；源码可编译，但 Rust 单元测试尚无法在此环境执行。`core_smoke` 可作为独立二进制实际运行。
 - 使用 GNU 工具链时，需要将 `C:\msys64\mingw64\bin` 加入启动 Cargo 的当前 shell `PATH`，以提供 `gcc` 与 `windres`。
 - Windows release EXE 与当前代码生成的 NSIS 安装包均已验证；MSI、干净环境的交互式安装、卸载和升级仍待验证。
-- 已配置 GitHub Actions Windows 质量门禁。首次远端运行暴露并推动修复了干净工作目录的 `WebView2Loader.dll` 资源缺陷；当前修复的远端复验尚待回传。它默认不下载语义模型，也不安装 FFmpeg，因此不会替代本地的模型、视频派生或安装器 smoke。
+- 已配置 GitHub Actions Windows 质量门禁。首次远端运行暴露并推动修复了干净工作目录的 `WebView2Loader.dll` 资源缺陷；2026-07-19 的修复复验已通过 Rust 编译和默认 core smoke。它默认不下载语义模型，也不安装 FFmpeg，因此不会替代本地的模型、视频派生或安装器 smoke。
 - 镜头检测和关键帧/短预览派生在 90 秒超时后会终止并回收 FFmpeg 子进程；ffprobe 的外部进程超时策略仍待统一到同一监督机制，任务暂停也仍会等待正在执行的单个外部媒体步骤完成或超时。
 
 ## 待验证项
