@@ -169,26 +169,41 @@ pub fn write_select_items_fcpxml(path: &Path, items: &[SelectItem]) -> AppResult
             (end - start).max(1)
         })
         .sum();
-    let mut output = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<fcpxml version=\"1.10\"><resources><format id=\"r1\" frameDuration=\"1/30s\" width=\"1920\" height=\"1080\"/>\n");
+    let timeline_fps = items
+        .iter()
+        .find_map(|item| valid_fps(item.asset.fps))
+        .unwrap_or(30.0);
+    let mut output = format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<fcpxml version=\"1.10\"><resources><format id=\"format-timeline\" frameDuration=\"{}\" width=\"1920\" height=\"1080\"/>\n",
+        fcpx_frame_duration(timeline_fps)
+    );
     for (index, item) in items.iter().enumerate() {
         let (_, end) = select_range(item);
         let source_duration = item.asset.duration_ms.unwrap_or(end).max(end).max(1);
+        let format_id = format!("format-asset-{}", index + 1);
+        let format_attribute = if item.asset.media_type.as_str() == "audio" {
+            String::new()
+        } else {
+            output.push_str(&fcpx_format_resource(&format_id, &item.asset));
+            format!(" format=\"{format_id}\"")
+        };
         output.push_str(&format!(
-            "<asset id=\"r{}\" name=\"{}\" src=\"{}\" start=\"0s\" duration=\"{}\" {}/>\n",
+            "<asset id=\"asset-{}\" name=\"{}\" src=\"{}\" start=\"0s\" duration=\"{}\"{} {}/>\n",
             index + 1,
             xml_escape(&item.asset.file_name),
             file_url(&item.asset.file_path),
             fcpx_duration(source_duration),
+            format_attribute,
             fcpx_media_attributes(&item.asset)
         ));
     }
-    output.push_str(&format!("</resources><library><event name=\"SceneWeaver\"><project name=\"SceneWeaver Selects\"><sequence duration=\"{}\" format=\"r1\"><spine>\n", fcpx_duration(total_ms)));
+    output.push_str(&format!("</resources><library><event name=\"SceneWeaver\"><project name=\"SceneWeaver Selects\"><sequence duration=\"{}\" format=\"format-timeline\"><spine>\n", fcpx_duration(total_ms)));
     let mut offset = 0_i64;
     for (index, item) in items.iter().enumerate() {
         let (start, end) = select_range(item);
         let duration = (end - start).max(1);
         output.push_str(&format!(
-            "<asset-clip ref=\"r{}\" name=\"{}\" offset=\"{}\" start=\"{}\" duration=\"{}\"/>\n",
+            "<asset-clip ref=\"asset-{}\" name=\"{}\" offset=\"{}\" start=\"{}\" duration=\"{}\"/>\n",
             index + 1,
             xml_escape(&item.asset.file_name),
             fcpx_duration(offset),
@@ -266,23 +281,38 @@ pub fn write_fcpxml(path: &Path, assets: &[Asset]) -> AppResult<()> {
         .iter()
         .map(|asset| asset.duration_ms.unwrap_or(0).max(0))
         .sum();
-    let mut output = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<fcpxml version=\"1.10\"><resources><format id=\"r1\" frameDuration=\"1/30s\" width=\"1920\" height=\"1080\"/>\n");
+    let timeline_fps = assets
+        .iter()
+        .find_map(|asset| valid_fps(asset.fps))
+        .unwrap_or(30.0);
+    let mut output = format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<fcpxml version=\"1.10\"><resources><format id=\"format-timeline\" frameDuration=\"{}\" width=\"1920\" height=\"1080\"/>\n",
+        fcpx_frame_duration(timeline_fps)
+    );
     for (index, asset) in assets.iter().enumerate() {
+        let format_id = format!("format-asset-{}", index + 1);
+        let format_attribute = if asset.media_type.as_str() == "audio" {
+            String::new()
+        } else {
+            output.push_str(&fcpx_format_resource(&format_id, asset));
+            format!(" format=\"{format_id}\"")
+        };
         output.push_str(&format!(
-            "<asset id=\"r{}\" name=\"{}\" src=\"{}\" start=\"0s\" duration=\"{}\" {}/>\n",
+            "<asset id=\"asset-{}\" name=\"{}\" src=\"{}\" start=\"0s\" duration=\"{}\"{} {}/>\n",
             index + 1,
             xml_escape(&asset.file_name),
             file_url(&asset.file_path),
             fcpx_duration(asset.duration_ms.unwrap_or(0)),
+            format_attribute,
             fcpx_media_attributes(asset)
         ));
     }
-    output.push_str(&format!("</resources><library><event name=\"SceneWeaver\"><project name=\"SceneWeaver Selects\"><sequence duration=\"{}\" format=\"r1\"><spine>\n", fcpx_duration(total_ms)));
+    output.push_str(&format!("</resources><library><event name=\"SceneWeaver\"><project name=\"SceneWeaver Selects\"><sequence duration=\"{}\" format=\"format-timeline\"><spine>\n", fcpx_duration(total_ms)));
     let mut offset = 0_i64;
     for (index, asset) in assets.iter().enumerate() {
         let duration = asset.duration_ms.unwrap_or(0).max(0);
         output.push_str(&format!(
-            "<asset-clip ref=\"r{}\" name=\"{}\" offset=\"{}\" start=\"0s\" duration=\"{}\"/>\n",
+            "<asset-clip ref=\"asset-{}\" name=\"{}\" offset=\"{}\" start=\"0s\" duration=\"{}\"/>\n",
             index + 1,
             xml_escape(&asset.file_name),
             fcpx_duration(offset),
@@ -297,6 +327,35 @@ pub fn write_fcpxml(path: &Path, assets: &[Asset]) -> AppResult<()> {
 
 fn fcpx_duration(milliseconds: i64) -> String {
     format!("{}/1000s", milliseconds.max(0))
+}
+
+fn valid_fps(fps: Option<f64>) -> Option<f64> {
+    fps.filter(|value| value.is_finite() && *value >= 1.0 && *value <= 240.0)
+}
+
+fn fcpx_frame_duration(fps: f64) -> String {
+    if (fps - 23.976).abs() < 0.02 {
+        "1001/24000s".to_string()
+    } else if (fps - 29.97).abs() < 0.02 {
+        "1001/30000s".to_string()
+    } else if (fps - 59.94).abs() < 0.02 {
+        "1001/60000s".to_string()
+    } else {
+        format!("1/{}s", fps.round().clamp(1.0, 240.0) as i64)
+    }
+}
+
+fn fcpx_format_resource(id: &str, asset: &Asset) -> String {
+    let width = asset.width.unwrap_or(1920).max(1);
+    let height = asset.height.unwrap_or(1080).max(1);
+    let fps = valid_fps(asset.fps).unwrap_or(30.0);
+    format!(
+        "<format id=\"{}\" frameDuration=\"{}\" width=\"{}\" height=\"{}\"/>\n",
+        id,
+        fcpx_frame_duration(fps),
+        width,
+        height
+    )
 }
 fn xml_escape(value: &str) -> String {
     value
@@ -357,7 +416,7 @@ pub fn timecode(milliseconds: i64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{csv_escape, file_url, timecode};
+    use super::{csv_escape, fcpx_frame_duration, file_url, timecode};
 
     #[test]
     fn formats_milliseconds_as_timecode() {
@@ -385,5 +444,13 @@ mod tests {
             file_url(r"C:\素材 库\雨夜#1%.mp4"),
             "file:///C:/%E7%B4%A0%E6%9D%90%20%E5%BA%93/%E9%9B%A8%E5%A4%9C%231%25.mp4"
         );
+    }
+
+    #[test]
+    fn preserves_common_ntsc_frame_durations_for_fcpxml() {
+        assert_eq!(fcpx_frame_duration(23.976), "1001/24000s");
+        assert_eq!(fcpx_frame_duration(29.97), "1001/30000s");
+        assert_eq!(fcpx_frame_duration(59.94), "1001/60000s");
+        assert_eq!(fcpx_frame_duration(25.0), "1/25s");
     }
 }

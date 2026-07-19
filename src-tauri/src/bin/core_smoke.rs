@@ -375,6 +375,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert!(fcpxml.contains("<fcpxml"));
     assert!(fcpxml.contains("%E4%B8%AD%E6%96%87"));
     assert!(fcpxml.contains("hasVideo=\"1\"/>"));
+    assert!(fcpxml.contains("id=\"format-timeline\""));
+    assert!(fcpxml.contains("id=\"asset-1\""));
+    assert!(fcpxml.contains("ref=\"asset-1\""));
 
     let segments = sceneweaver_lib::core::scene_detect::build_segments(
         &primary_asset.id,
@@ -407,7 +410,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         db.list_select_items(&default_collection.id)?[0].id,
         segment_item.id
     );
-    let range_items = db.list_select_items(&default_collection.id)?;
+    let mut range_items = db.list_select_items(&default_collection.id)?;
     assert_eq!(db.default_select_items()?.len(), range_items.len());
     let range_csv_path = root.join("range-selects.csv");
     write_select_items_csv(&range_csv_path, &range_items)?;
@@ -418,9 +421,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let range_edl_path = root.join("range-selects.edl");
     write_select_items_edl(&range_edl_path, &range_items)?;
     assert!(std::fs::read_to_string(&range_edl_path)?.contains("00:00:01:00"));
+    range_items[0].asset.fps = Some(23.976);
+    range_items[0].asset.width = Some(1920);
+    range_items[0].asset.height = Some(1080);
     let range_fcpxml_path = root.join("range-selects.fcpxml");
     write_select_items_fcpxml(&range_fcpxml_path, &range_items)?;
-    assert!(std::fs::read_to_string(&range_fcpxml_path)?.contains("start=\"1000/1000s\""));
+    let range_fcpxml = std::fs::read_to_string(&range_fcpxml_path)?;
+    assert!(range_fcpxml.contains("start=\"1000/1000s\""));
+    assert!(range_fcpxml.contains("frameDuration=\"1001/24000s\""));
+    assert!(range_fcpxml.contains("format=\"format-asset-1\""));
     let contact_sheet_path = root.join("range-selects.png");
     write_select_contact_sheet_png(&contact_sheet_path, &range_items, &cache)?;
     assert_eq!(image::open(&contact_sheet_path)?.width(), 1_000);
