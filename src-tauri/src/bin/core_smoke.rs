@@ -11,7 +11,7 @@ use sceneweaver_lib::core::job_queue::{JobControl, ProgressUpdate};
 use sceneweaver_lib::core::scanner::Scanner;
 use sceneweaver_lib::models::{
     Entity, EntityReference, IndexProfile, Job, JobStatus, JobType, Library, LibraryStatus,
-    SearchRequest,
+    SearchRequest, SelectCollection,
 };
 
 struct SilentProgress;
@@ -231,6 +231,90 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .cloned()
         .expect("primary smoke image must be indexed");
     assert!(cache.thumbnail_path(&primary_asset.id, "cover").is_file());
+
+    // A library may move to another disk or receive a different mount point.
+    // Reconnection must retain stable asset IDs and asset-level selects for files
+    // that retain their relative paths, while explicitly taking missing files offline.
+    let relocation_source = root.join("relocation source");
+    let relocation_nested = relocation_source.join("nested");
+    std::fs::create_dir_all(&relocation_nested)?;
+    let relocation_keep = relocation_nested.join("keep.png");
+    let relocation_missing = relocation_nested.join("missing.png");
+    image::RgbImage::from_pixel(20, 10, image::Rgb([20, 40, 60])).save(&relocation_keep)?;
+    image::RgbImage::from_pixel(20, 10, image::Rgb([60, 40, 20])).save(&relocation_missing)?;
+    let relocation_library = Library {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: "Relocation smoke library".to_string(),
+        root_path: relocation_source.to_string_lossy().to_string(),
+        status: LibraryStatus::Idle,
+        index_profile: IndexProfile::Quick,
+        include_patterns: vec!["**/*".to_string()],
+        exclude_patterns: vec![],
+        watch_enabled: false,
+        last_scan_at: None,
+        created_at: now,
+        updated_at: now,
+    };
+    db.create_library(&relocation_library)?;
+    assert_eq!(
+        scanner
+            .scan_library(&relocation_library, &control, &progress)?
+            .changed,
+        2
+    );
+    let relocation_asset = db
+        .list_assets(&relocation_library.id)?
+        .into_iter()
+        .find(|asset| asset.file_name == "keep.png")
+        .expect("relocation asset must be indexed");
+    let relocation_collection = SelectCollection {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: "Relocation selects".to_string(),
+        description: None,
+        created_at: now,
+        updated_at: now,
+    };
+    db.create_select_collection(&relocation_collection)?;
+    db.add_asset_to_select_collection(&relocation_collection.id, &relocation_asset.id)?;
+    assert!(cache
+        .thumbnail_path(&relocation_asset.id, "cover")
+        .is_file());
+    std::fs::remove_file(&relocation_missing)?;
+    let relocation_target = root.join("relocation target");
+    std::fs::rename(&relocation_source, &relocation_target)?;
+    let relocation_target = dunce::canonicalize(&relocation_target)?;
+    let (reconnected_library, rebound_assets, offline_assets) =
+        db.reconnect_library_root(&relocation_library.id, &relocation_target)?;
+    assert_eq!(rebound_assets, 1);
+    assert_eq!(offline_assets, 1);
+    let rebound_asset = db
+        .get_asset(&relocation_asset.id)?
+        .expect("reconnected asset must retain its ID");
+    assert!(rebound_asset
+        .file_path
+        .starts_with(relocation_target.to_string_lossy().as_ref()));
+    assert_eq!(
+        rebound_asset.status,
+        sceneweaver_lib::models::AssetStatus::Indexed
+    );
+    assert_eq!(
+        db.list_select_items(&relocation_collection.id)?[0].asset_id,
+        relocation_asset.id
+    );
+    assert!(cache
+        .thumbnail_path(&relocation_asset.id, "cover")
+        .is_file());
+    let reconnected_scan = scanner.scan_library(&reconnected_library, &control, &progress)?;
+    assert_eq!(reconnected_scan.changed, 0);
+    assert_eq!(reconnected_scan.unchanged, 1);
+    assert_eq!(
+        db.list_assets(&relocation_library.id)?
+            .into_iter()
+            .find(|asset| asset.file_name == "missing.png")
+            .expect("missing relocation asset must remain tracked")
+            .status,
+        sceneweaver_lib::models::AssetStatus::Offline
+    );
     let mut similar_asset = primary_asset.clone();
     similar_asset.id = uuid::Uuid::new_v4().to_string();
     similar_asset.normalized_path = format!("{}-similar", similar_asset.normalized_path);

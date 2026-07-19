@@ -13,6 +13,7 @@ pub fn register_commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + 
         library::get_library,
         library::delete_library,
         library::start_scan,
+        library::reconnect_library,
         asset::list_assets,
         asset::get_asset,
         asset::list_segments,

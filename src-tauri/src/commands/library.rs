@@ -6,6 +6,7 @@ use crate::core::error::AppResult;
 use crate::core::scanner::{default_exclude_patterns, default_include_patterns, normalize_path};
 use crate::models::{
     CreateLibraryRequest, IndexProfile, Job, JobStatus, JobType, Library, LibraryStatus,
+    ReconnectLibraryRequest, ReconnectLibraryResult,
 };
 
 #[tauri::command]
@@ -62,6 +63,34 @@ pub async fn delete_library(state: State<'_, AppState>, id: String) -> AppResult
 
 #[tauri::command]
 pub async fn start_scan(state: State<'_, AppState>, library_id: String) -> AppResult<Job> {
+    enqueue_scan(&state, library_id)
+}
+
+#[tauri::command]
+pub async fn reconnect_library(
+    state: State<'_, AppState>,
+    req: ReconnectLibraryRequest,
+) -> AppResult<ReconnectLibraryResult> {
+    let requested_root = std::path::Path::new(&req.root_path);
+    if !requested_root.is_absolute() || !requested_root.is_dir() {
+        return Err(crate::core::error::AppError::InvalidPath(
+            requested_root.to_path_buf(),
+        ));
+    }
+    let root = dunce::canonicalize(requested_root)
+        .map_err(|_| crate::core::error::AppError::InvalidPath(requested_root.to_path_buf()))?;
+    let (library, rebased_assets, offline_assets) =
+        state.db.reconnect_library_root(&req.library_id, &root)?;
+    let job = enqueue_scan(&state, library.id.clone())?;
+    Ok(ReconnectLibraryResult {
+        library,
+        job,
+        rebased_assets,
+        offline_assets,
+    })
+}
+
+fn enqueue_scan(state: &AppState, library_id: String) -> AppResult<Job> {
     let library = state
         .db
         .get_library(&library_id)?

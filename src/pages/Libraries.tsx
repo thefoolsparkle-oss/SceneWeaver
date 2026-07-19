@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { open } from '@tauri-apps/plugin-dialog';
 import { Link } from 'react-router-dom';
-import { createLibrary, listLibraries, startScan } from '@/api';
+import { createLibrary, listLibraries, reconnectLibrary, startScan } from '@/api';
 import type { Library } from '@/types';
 
 export default function Libraries() {
@@ -13,6 +13,7 @@ export default function Libraries() {
   });
   const [name, setName] = useState('');
   const [path, setPath] = useState('');
+  const [reconnectMessage, setReconnectMessage] = useState('');
 
   const createMutation = useMutation({
     mutationFn: createLibrary,
@@ -28,6 +29,17 @@ export default function Libraries() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['libraries'] });
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    },
+  });
+
+  const reconnectMutation = useMutation({
+    mutationFn: reconnectLibrary,
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['libraries'] });
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      setReconnectMessage(
+        `已重新连接并启动扫描：保留 ${result.rebased_assets} 个素材关联，${result.offline_assets} 个素材暂时离线。`,
+      );
     },
   });
 
@@ -48,6 +60,13 @@ export default function Libraries() {
       root_path: path.trim(),
       index_profile: 'balanced',
     });
+  };
+
+  const reconnect = async (library: Library) => {
+    const selected = await open({ directory: true, multiple: false });
+    if (!selected || typeof selected !== 'string') return;
+    setReconnectMessage('');
+    reconnectMutation.mutate({ library_id: library.id, root_path: selected });
   };
 
   return (
@@ -94,6 +113,13 @@ export default function Libraries() {
         )}
       </div>
 
+      {reconnectMessage && <p className="mb-4 text-sm text-emerald-700 dark:text-emerald-300">{reconnectMessage}</p>}
+      {reconnectMutation.isError && (
+        <p className="mb-4 text-sm text-red-600">
+          重新连接失败：{reconnectMutation.error?.message ?? '未知错误'}
+        </p>
+      )}
+
       {isLoading ? (
         <p className="text-neutral-500">加载中…</p>
       ) : libraries?.length === 0 ? (
@@ -106,6 +132,8 @@ export default function Libraries() {
               library={lib}
               onScan={() => scanMutation.mutate(lib.id)}
               isScanning={scanMutation.isPending && scanMutation.variables === lib.id}
+              onReconnect={() => reconnect(lib)}
+              isReconnecting={reconnectMutation.isPending && reconnectMutation.variables?.library_id === lib.id}
             />
           ))}
         </div>
@@ -118,10 +146,14 @@ function LibraryCard({
   library,
   onScan,
   isScanning,
+  onReconnect,
+  isReconnecting,
 }: {
   library: Library;
   onScan: () => void;
   isScanning: boolean;
+  onReconnect: () => void;
+  isReconnecting: boolean;
 }) {
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950">
@@ -134,13 +166,21 @@ function LibraryCard({
       <p className="mb-3 truncate text-sm text-neutral-500" title={library.root_path}>
         {library.root_path}
       </p>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
           onClick={onScan}
           disabled={isScanning || library.status === 'scanning'}
           className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
         >
           {isScanning ? '启动中…' : '扫描'}
+        </button>
+        <button
+          onClick={onReconnect}
+          disabled={isReconnecting || library.status === 'scanning'}
+          title="素材库移动、盘符变化或外接盘重新挂载后，选择新的根目录。相对路径未变化的素材会保留选片、标注和分析结果。"
+          className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+        >
+          {isReconnecting ? '重新连接中…' : '重新连接'}
         </button>
         <Link
           to={`/libraries/${library.id}`}

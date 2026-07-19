@@ -1,5 +1,7 @@
 # SceneWeaver
 
+> 2026-07-19 更新：素材库卡片新增“重新连接”。当素材库移动、盘符变化或外接盘重新挂载时，选择新的根目录即可自动启动增量扫描；相对路径仍一致的文件会保留资产 ID、缩略图、分析结果、Entity 关联和 Selects，找不到的文件会明确标为离线。该操作只更新本地 SQLite 路径记录，绝不移动、删除或上传源媒体。
+
 > 面向内容创作者的本地多模态素材搜索、整理与选片工作台。
 > Local-first Multimodal Media Search & Selects Workspace for Creators.
 

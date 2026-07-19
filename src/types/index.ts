@@ -27,6 +27,18 @@ export interface CreateLibraryRequest {
   exclude_patterns?: string[];
 }
 
+export interface ReconnectLibraryRequest {
+  library_id: string;
+  root_path: string;
+}
+
+export interface ReconnectLibraryResult {
+  library: Library;
+  job: Job;
+  rebased_assets: number;
+  offline_assets: number;
+}
+
 export interface Asset {
   id: string;
   library_id: string;

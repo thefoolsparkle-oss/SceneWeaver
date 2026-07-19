@@ -1,8 +1,11 @@
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::core::error::{AppError, AppResult};
+use crate::core::fingerprint::quick_fingerprint;
+use crate::core::scanner::normalize_path;
 use crate::models::*;
 
 #[derive(Clone)]
@@ -115,6 +118,107 @@ impl Database {
             params![status.as_str(), last_scan_at, now, id],
         )?;
         Ok(())
+    }
+
+    /// Switch a library to a new root without changing the identity of files that
+    /// still exist at the same relative path. This preserves selects, embeddings,
+    /// thumbnails and detected segments while making absent files explicitly offline.
+    pub fn reconnect_library_root(
+        &self,
+        library_id: &str,
+        new_root: &Path,
+    ) -> AppResult<(Library, usize, usize)> {
+        let mut library = self
+            .get_library(library_id)?
+            .ok_or_else(|| AppError::LibraryNotFound(library_id.to_string()))?;
+        if library.status == LibraryStatus::Scanning {
+            return Err(AppError::Other(
+                "素材库正在扫描中，无法重新连接".to_string(),
+            ));
+        }
+
+        let old_root = PathBuf::from(&library.root_path);
+        let mut rebased = Vec::new();
+        let mut normalized_paths = HashSet::new();
+        for asset in self.list_assets(library_id)? {
+            let Ok(relative_path) = Path::new(&asset.file_path).strip_prefix(&old_root) else {
+                continue;
+            };
+            let candidate = new_root.join(relative_path);
+            if !candidate.is_file() {
+                continue;
+            }
+            let canonical = dunce::canonicalize(&candidate)
+                .map_err(|_| AppError::InvalidPath(candidate.clone()))?;
+            let normalized_path = normalize_path(&canonical);
+            if !normalized_paths.insert(normalized_path.clone()) {
+                return Err(AppError::Other(
+                    "新素材库中存在无法安全区分的重复路径".to_string(),
+                ));
+            }
+            let metadata = std::fs::metadata(&canonical)?;
+            let modified_at = metadata
+                .modified()?
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as i64;
+            rebased.push((
+                asset,
+                canonical,
+                normalized_path,
+                metadata.len() as i64,
+                modified_at,
+            ));
+        }
+
+        let now = chrono::Utc::now().timestamp_millis();
+        let mut conn = self.open()?;
+        let transaction = conn.transaction()?;
+        transaction.execute(
+            "UPDATE libraries SET root_path = ?1, status = 'idle', updated_at = ?2 WHERE id = ?3",
+            params![normalize_path(new_root), now, library_id],
+        )?;
+        transaction.execute(
+            "UPDATE assets SET status = 'offline', updated_at = ?1 WHERE library_id = ?2 AND status != 'offline'",
+            params![now, library_id],
+        )?;
+        for (asset, canonical, normalized_path, size_bytes, modified_at) in &rebased {
+            let status = if asset.status == AssetStatus::Offline {
+                AssetStatus::Indexed
+            } else {
+                asset.status.clone()
+            };
+            transaction.execute(
+                "UPDATE assets SET file_path = ?1, normalized_path = ?2, file_name = ?3,
+                    size_bytes = ?4, modified_at = ?5, quick_fingerprint = ?6, status = ?7,
+                    updated_at = ?8 WHERE id = ?9",
+                params![
+                    canonical.to_string_lossy().to_string(),
+                    normalized_path,
+                    canonical
+                        .file_name()
+                        .map(|name| name.to_string_lossy().to_string())
+                        .unwrap_or_default(),
+                    size_bytes,
+                    modified_at,
+                    quick_fingerprint(normalized_path, *size_bytes as u64, *modified_at),
+                    status.as_str(),
+                    now,
+                    asset.id,
+                ],
+            )?;
+        }
+        transaction.commit()?;
+
+        let offline_assets = self
+            .list_assets(library_id)?
+            .iter()
+            .filter(|asset| asset.status == AssetStatus::Offline)
+            .count();
+        library.root_path = normalize_path(new_root);
+        library.status = LibraryStatus::Idle;
+        library.updated_at = now;
+        Ok((library, rebased.len(), offline_assets))
     }
 
     // Assets

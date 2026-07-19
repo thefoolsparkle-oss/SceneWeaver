@@ -90,3 +90,19 @@ pub struct CreateLibraryRequest {
     pub include_patterns: Option<Vec<String>>,
     pub exclude_patterns: Option<Vec<String>>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ReconnectLibraryRequest {
+    pub library_id: String,
+    pub root_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ReconnectLibraryResult {
+    pub library: Library,
+    pub job: crate::models::Job,
+    pub rebased_assets: usize,
+    pub offline_assets: usize,
+}

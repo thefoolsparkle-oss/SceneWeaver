@@ -9,6 +9,7 @@ import type {
   Segment,
   SearchRequest, SearchResult,
   Entity, EntityReference, CreateEntityRequest, SelectCollection, CreateSelectCollectionRequest, SelectItem, UpdateSelectItemRequest,
+  ReconnectLibraryRequest, ReconnectLibraryResult,
 } from '@/types';
 
 // Libraries
@@ -25,6 +26,9 @@ export const deleteLibrary = (id: string): Promise<void> =>
 
 export const startScan = (libraryId: string): Promise<Job> =>
   invoke('start_scan', { libraryId });
+
+export const reconnectLibrary = (req: ReconnectLibraryRequest): Promise<ReconnectLibraryResult> =>
+  invoke('reconnect_library', { req });
 
 export const pauseJob = (jobId: string): Promise<Job> =>
   invoke('pause_job', { jobId });
