@@ -125,6 +125,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .model_installed
     );
+    let exclusion_safe_prompt =
+        sceneweaver_lib::providers::semantic_clip::semantic_query_prompt_for_conditions(
+            &["战斗".to_string()],
+            &["近景".to_string(), "粉色头发".to_string()],
+            "战斗 优先 近景、粉色头发 不要 游戏 UI、字幕",
+        )
+        .expect("known creator terms should produce a semantic prompt");
+    assert!(exclusion_safe_prompt.contains("battle"));
+    assert!(exclusion_safe_prompt.contains("pink hair"));
+    assert!(!exclusion_safe_prompt.contains("subtitles"));
     std::fs::remove_dir_all(cache.models_path())?;
     std::fs::create_dir_all(cache.models_path())?;
     let now = chrono::Utc::now().timestamp_millis();

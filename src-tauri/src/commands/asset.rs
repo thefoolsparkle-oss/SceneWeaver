@@ -162,9 +162,11 @@ pub async fn search_assets(
         &crate::providers::semantic_clip::default_runtime_path(),
     );
     if semantic_status.ready {
-        if let Some(prompt) =
-            crate::providers::semantic_clip::semantic_query_prompt(&request.raw_query)
-        {
+        if let Some(prompt) = crate::providers::semantic_clip::semantic_query_prompt_for_conditions(
+            &request.must,
+            &request.should,
+            &request.raw_query,
+        ) {
             if let Ok(query_vector) = crate::providers::semantic_clip::embed_text(
                 &state.cache.models_path(),
                 &crate::providers::semantic_clip::default_runtime_path(),

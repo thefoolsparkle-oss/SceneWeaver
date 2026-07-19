@@ -117,25 +117,61 @@ pub fn semantic_query_prompt(query: &str) -> Option<String> {
     }
     let glossary = [
         ("雨夜", "rainy night"),
+        ("下雨", "rain"),
+        ("雨天", "rainy day"),
+        ("雨伞", "umbrella"),
         ("夜景", "night scene"),
+        ("夜晚", "night"),
         ("白天", "daytime"),
+        ("日落", "sunset"),
+        ("黄昏", "dusk"),
+        ("清晨", "dawn"),
         ("角色", "character"),
         ("人物", "person"),
+        ("女孩", "girl"),
+        ("男孩", "boy"),
+        ("人群", "crowd"),
         ("侧脸", "side profile"),
         ("正脸", "front face"),
+        ("背影", "back view"),
         ("回头", "looking back"),
         ("近景", "close up"),
+        ("特写", "close up"),
+        ("中景", "medium shot"),
         ("远景", "wide shot"),
+        ("俯拍", "high angle"),
+        ("仰拍", "low angle"),
+        ("第一人称", "first person view"),
         ("城市", "city"),
+        ("街道", "street"),
+        ("室内", "indoors"),
+        ("室外", "outdoors"),
+        ("学校", "school"),
+        ("海边", "beach"),
         ("战斗", "battle"),
+        ("打斗", "fight"),
+        ("奔跑", "running"),
+        ("走路", "walking"),
+        ("跳跃", "jumping"),
+        ("拥抱", "hugging"),
         ("游戏", "video game"),
         ("界面", "user interface"),
         ("字幕", "subtitles"),
         ("微笑", "smiling"),
+        ("大笑", "laughing"),
         ("哭", "crying"),
         ("愤怒", "angry"),
+        ("惊讶", "surprised"),
+        ("悲伤", "sad"),
+        ("害羞", "shy"),
+        ("粉色头发", "pink hair"),
+        ("黑色头发", "black hair"),
+        ("白色头发", "white hair"),
+        ("金色头发", "blonde hair"),
         ("红", "red"),
         ("蓝", "blue"),
+        ("绿色", "green"),
+        ("黄色", "yellow"),
     ];
     let mut phrases = glossary
         .iter()
@@ -152,6 +188,29 @@ pub fn semantic_query_prompt(query: &str) -> Option<String> {
         }
     } else {
         Some(phrases.join(", "))
+    }
+}
+
+/// Builds the CLIP prompt for a parsed creator search. Explicit exclusions
+/// are deliberately absent: including `不要字幕` as the word "subtitles"
+/// would bias a semantic query toward exactly the thing the user rejected.
+/// When callers did not provide parsed conditions (for example an older IPC
+/// client), retain the raw-query behaviour as a backwards-compatible
+/// fallback.
+pub fn semantic_query_prompt_for_conditions(
+    must: &[String],
+    should: &[String],
+    raw_query: &str,
+) -> Option<String> {
+    let positive_terms = must
+        .iter()
+        .chain(should)
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    if positive_terms.is_empty() {
+        semantic_query_prompt(raw_query)
+    } else {
+        semantic_query_prompt(&positive_terms.join(" "))
     }
 }
 
@@ -240,7 +299,10 @@ fn ensure_runtime(runtime_path: &Path) -> AppResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{semantic_query_prompt, status, PROVIDER_ID, READY_MARKER};
+    use super::{
+        semantic_query_prompt, semantic_query_prompt_for_conditions, status, PROVIDER_ID,
+        READY_MARKER,
+    };
 
     #[test]
     fn missing_runtime_and_model_is_an_explicit_degraded_state() {
@@ -304,5 +366,20 @@ mod tests {
             semantic_query_prompt("a red character"),
             Some("a red character".to_string())
         );
+    }
+
+    #[test]
+    fn exclusion_terms_do_not_enter_a_parsed_semantic_prompt() {
+        let prompt = semantic_query_prompt_for_conditions(
+            &["战斗".to_string()],
+            &["近景".to_string(), "粉色头发".to_string()],
+            "战斗 优先 近景、粉色头发 不要 游戏 UI、字幕",
+        )
+        .unwrap();
+        assert!(prompt.contains("battle"));
+        assert!(prompt.contains("close up"));
+        assert!(prompt.contains("pink hair"));
+        assert!(!prompt.contains("subtitles"));
+        assert!(!prompt.contains("user interface"));
     }
 }
