@@ -64,6 +64,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(legacy_reference_embedding_count, 1);
     let cache = Arc::new(CacheManager::new(root.join("cache")));
     cache.ensure_dirs()?;
+    let disposable_cache = CacheManager::new(root.join("disposable-cache"));
+    disposable_cache.ensure_dirs()?;
+    std::fs::write(
+        disposable_cache.thumbnail_path("temporary", "cover"),
+        b"cache",
+    )?;
+    std::fs::write(disposable_cache.models_path().join("keep-model"), b"model")?;
+    assert_eq!(disposable_cache.cache_size()?, 5);
+    assert_eq!(disposable_cache.clear_cache()?, 5);
+    assert_eq!(disposable_cache.cache_size()?, 0);
+    assert!(disposable_cache.models_path().join("keep-model").is_file());
     let semantic_status = sceneweaver_lib::providers::semantic_clip::status(
         &cache.models_path(),
         &sceneweaver_lib::providers::semantic_clip::default_runtime_path(),

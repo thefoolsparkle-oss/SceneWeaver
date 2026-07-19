@@ -41,6 +41,8 @@ pub fn register_commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + 
         job::cancel_job,
         job::retry_job,
         system::get_app_stats,
+        system::cache_size,
+        system::clear_media_cache,
         system::acg_creator_pack_enabled,
         system::set_acg_creator_pack_enabled,
         system::semantic_model_status,

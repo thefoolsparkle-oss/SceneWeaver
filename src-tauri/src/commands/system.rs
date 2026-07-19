@@ -10,6 +10,16 @@ pub async fn get_app_stats(state: State<'_, AppState>) -> AppResult<AppStats> {
 }
 
 #[tauri::command]
+pub async fn cache_size(state: State<'_, AppState>) -> AppResult<u64> {
+    state.cache.cache_size()
+}
+
+#[tauri::command]
+pub async fn clear_media_cache(state: State<'_, AppState>) -> AppResult<u64> {
+    state.cache.clear_cache()
+}
+
+#[tauri::command]
 pub async fn acg_creator_pack_enabled(state: State<'_, AppState>) -> AppResult<bool> {
     state.db.acg_creator_pack_enabled()
 }

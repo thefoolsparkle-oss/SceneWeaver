@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { acgCreatorPackEnabled, installSemanticModel, reindexSemanticAssets, semanticModelStatus, setAcgCreatorPackEnabled } from '@/api';
+import { acgCreatorPackEnabled, cacheSize, clearMediaCache, installSemanticModel, reindexSemanticAssets, semanticModelStatus, setAcgCreatorPackEnabled } from '@/api';
 
 export default function Settings() {
   const [darkMode, setDarkMode] = useState(false);
@@ -13,6 +13,8 @@ export default function Settings() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['semanticModelStatus'] }),
   });
   const semanticReindex = useMutation({ mutationFn: reindexSemanticAssets });
+  const cache = useQuery({ queryKey: ['cacheSize'], queryFn: cacheSize });
+  const clearCache = useMutation({ mutationFn: clearMediaCache, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cacheSize'] }) });
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
@@ -96,8 +98,8 @@ export default function Settings() {
             <div className="font-medium">缓存管理</div>
             <div className="text-sm text-neutral-500">查看与清理本地缩略图和代理文件</div>
           </div>
-          <button className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800">
-            管理
+          <button onClick={() => clearCache.mutate()} disabled={clearCache.isPending} className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800">
+            {clearCache.isPending ? '清理中…' : `清理 ${Math.round((cache.data ?? 0) / 1024)} KB`}
           </button>
         </div>
       </div>

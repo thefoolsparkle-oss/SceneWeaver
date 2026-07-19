@@ -124,6 +124,8 @@ export const reorderSelectItem = (itemId: string, targetPosition: number): Promi
 
 // Stats
 export const getAppStats = (): Promise<AppStats> => invoke('get_app_stats');
+export const cacheSize = (): Promise<number> => invoke('cache_size');
+export const clearMediaCache = (): Promise<number> => invoke('clear_media_cache');
 export const acgCreatorPackEnabled = (): Promise<boolean> => invoke('acg_creator_pack_enabled');
 export const setAcgCreatorPackEnabled = (enabled: boolean): Promise<void> => invoke('set_acg_creator_pack_enabled', { enabled });
 export type SemanticModelStatus = {
