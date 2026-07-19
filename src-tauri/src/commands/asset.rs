@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use tauri::State;
 
@@ -157,6 +157,7 @@ pub async fn search_assets(
     let started = std::time::Instant::now();
     let mut assets = state.db.search_assets_with_conditions(&request, 100)?;
     let mut semantic_ids = HashSet::new();
+    let mut entity_match_names = HashMap::<String, Vec<String>>::new();
     let semantic_status = crate::providers::semantic_clip::status(
         &state.cache.models_path(),
         &crate::providers::semantic_clip::default_runtime_path(),
@@ -193,17 +194,35 @@ pub async fn search_assets(
             }
         }
     }
+    let allowed_ids = state
+        .db
+        .assets_matching_nonsemantic_filters(&request, 500)?
+        .into_iter()
+        .map(|asset| asset.id)
+        .collect::<HashSet<_>>();
+    for entity in state.db.entities_matching_search_request(&request)? {
+        for candidate in state
+            .db
+            .entity_candidate_assets(&entity.id, semantic_status.ready, 100)?
+        {
+            if !allowed_ids.contains(&candidate.id) {
+                continue;
+            }
+            let asset_id = candidate.id.clone();
+            if !assets.iter().any(|asset| asset.id == asset_id) {
+                assets.push(candidate);
+            }
+            entity_match_names
+                .entry(asset_id)
+                .or_default()
+                .push(entity.name.clone());
+        }
+    }
     let mut visual_fallback: Option<&str> = None;
     if assets.is_empty() {
         if let Some(query_vector) =
             crate::providers::visual_embedding::embed_color_query(&request.raw_query)
         {
-            let allowed_ids = state
-                .db
-                .assets_matching_nonsemantic_filters(&request, 500)?
-                .into_iter()
-                .map(|asset| asset.id)
-                .collect::<HashSet<_>>();
             assets = state
                 .db
                 .assets_for_visual_query(&query_vector, 100)?
@@ -225,7 +244,19 @@ pub async fn search_assets(
             } else {
                 visual_fallback
             };
-            explain_search_result(asset, &request, visual_reason)
+            let mut result = explain_search_result(asset, &request, visual_reason);
+            if let Some(names) = entity_match_names.get(&result.asset.id) {
+                let names = names
+                    .iter()
+                    .cloned()
+                    .collect::<std::collections::BTreeSet<_>>();
+                result.match_reasons.push(format!(
+                    "命中实体参考：{}",
+                    names.into_iter().collect::<Vec<_>>().join("、")
+                ));
+                result.score += 1.0;
+            }
+            result
         })
         .collect())
 }

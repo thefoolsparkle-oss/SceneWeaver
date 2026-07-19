@@ -1042,6 +1042,40 @@ impl Database {
         rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
     }
 
+    /// Resolves an Entity mentioned in a parsed natural-language search. Must
+    /// Not terms are intentionally excluded: asking for "不要角色 A" must not
+    /// turn A's positive reference images into candidates.
+    pub fn entities_matching_search_request(
+        &self,
+        request: &SearchRequest,
+    ) -> AppResult<Vec<Entity>> {
+        let positive_terms = request
+            .must
+            .iter()
+            .chain(&request.should)
+            .map(|term| term.trim().to_lowercase())
+            .filter(|term| !term.is_empty())
+            .collect::<Vec<_>>();
+        let raw_query = request.raw_query.trim().to_lowercase();
+        if positive_terms.is_empty() && (!request.must_not.is_empty() || raw_query.is_empty()) {
+            return Ok(Vec::new());
+        }
+        Ok(self
+            .list_entities()?
+            .into_iter()
+            .filter(|entity| {
+                std::iter::once(&entity.name)
+                    .chain(entity.aliases.iter())
+                    .map(|name| name.trim().to_lowercase())
+                    .filter(|name| !name.is_empty())
+                    .any(|name| {
+                        positive_terms.iter().any(|term| term == &name)
+                            || (name.chars().count() >= 2 && raw_query.contains(&name))
+                    })
+            })
+            .collect())
+    }
+
     pub fn add_entity_reference(
         &self,
         reference: &crate::models::EntityReference,
@@ -1173,6 +1207,31 @@ impl Database {
             crate::providers::visual_embedding::PROVIDER_ID,
             limit,
         )
+    }
+
+    /// Merges explicit name/alias hits with every available local reference
+    /// provider for one entity. The caller remains responsible for applying
+    /// request-specific hard filters and attaching presentation data.
+    pub fn entity_candidate_assets(
+        &self,
+        entity_id: &str,
+        include_semantic: bool,
+        limit: usize,
+    ) -> AppResult<Vec<Asset>> {
+        let mut assets = self.assets_matching_entity_terms(entity_id, limit)?;
+        if let Ok(visual_matches) = self.similar_assets_for_entity(entity_id, limit) {
+            merge_unique_assets(&mut assets, visual_matches);
+        }
+        if include_semantic {
+            if let Ok(semantic_matches) = self.similar_assets_for_entity_provider(
+                entity_id,
+                crate::providers::semantic_clip::PROVIDER_ID,
+                limit,
+            ) {
+                merge_unique_assets(&mut assets, semantic_matches);
+            }
+        }
+        Ok(assets)
     }
 
     pub fn similar_assets_for_entity_provider(
@@ -1499,6 +1558,14 @@ fn row_to_asset_at(row: &rusqlite::Row, offset: usize) -> rusqlite::Result<Asset
         updated_at: row.get(offset + 21)?,
         thumbnail_data_url: None,
     })
+}
+
+fn merge_unique_assets(target: &mut Vec<Asset>, candidates: Vec<Asset>) {
+    for candidate in candidates {
+        if !target.iter().any(|asset| asset.id == candidate.id) {
+            target.push(candidate);
+        }
+    }
 }
 
 fn row_to_job(row: &rusqlite::Row) -> rusqlite::Result<Job> {

@@ -289,6 +289,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         sceneweaver_lib::providers::visual_embedding::embed_image(&image_path)?;
     db.add_entity_reference(&positive_reference, &primary_colour_embedding)?;
     db.upsert_entity_reference_embedding(&positive_reference.id, "test", "v1", &red)?;
+    let entity_request = SearchRequest {
+        raw_query: "角色 雨夜".to_string(),
+        must: vec!["角色".to_string()],
+        should: vec!["雨夜".to_string()],
+        must_not: vec![],
+        media_types: vec![],
+        min_quality_score: None,
+    };
+    assert!(db
+        .entities_matching_search_request(&entity_request)?
+        .iter()
+        .any(|matched| matched.id == entity.id));
+    assert!(db
+        .entity_candidate_assets(&entity.id, false, 5)?
+        .iter()
+        .any(|asset| asset.id == primary_asset.id));
+    let exclusion_only_entity_request = SearchRequest {
+        raw_query: "不要角色".to_string(),
+        must: vec![],
+        should: vec![],
+        must_not: vec!["角色".to_string()],
+        media_types: vec![],
+        min_quality_score: None,
+    };
+    assert!(db
+        .entities_matching_search_request(&exclusion_only_entity_request)?
+        .is_empty());
     assert_eq!(
         db.similar_assets_for_entity_provider(&entity.id, "test", 5)?[0].id,
         primary_asset.id

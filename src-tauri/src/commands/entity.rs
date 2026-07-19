@@ -115,31 +115,13 @@ pub async fn find_assets_for_entity(
     state: State<'_, AppState>,
     entity_id: String,
 ) -> AppResult<Vec<crate::models::Asset>> {
-    let mut assets = state.db.assets_matching_entity_terms(&entity_id, 100)?;
-    if let Ok(visual_matches) = state.db.similar_assets_for_entity(&entity_id, 100) {
-        for asset in visual_matches {
-            if !assets.iter().any(|existing| existing.id == asset.id) {
-                assets.push(asset);
-            }
-        }
-    }
     let semantic_status = crate::providers::semantic_clip::status(
         &state.cache.models_path(),
         &crate::providers::semantic_clip::default_runtime_path(),
     );
-    if semantic_status.ready {
-        if let Ok(semantic_matches) = state.db.similar_assets_for_entity_provider(
-            &entity_id,
-            crate::providers::semantic_clip::PROVIDER_ID,
-            100,
-        ) {
-            for asset in semantic_matches {
-                if !assets.iter().any(|existing| existing.id == asset.id) {
-                    assets.push(asset);
-                }
-            }
-        }
-    }
+    let mut assets = state
+        .db
+        .entity_candidate_assets(&entity_id, semantic_status.ready, 100)?;
     for asset in &mut assets {
         let path = state.cache.thumbnail_path(&asset.id, "cover");
         if let Ok(bytes) = std::fs::read(path) {
