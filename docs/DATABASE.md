@@ -69,7 +69,7 @@
 | preview_path | TEXT | 预览路径 |
 | quality_score | REAL | 质量分 |
 | subtitle_present | INTEGER | 0/1 |
-| game_ui | INTEGER | nullable 0/1 |
+| game_ui | INTEGER | nullable 0/1；保守双下角 HUD 提示 |
 | black_frame_score | REAL | 黑帧分数 |
 | blur_score | REAL | 模糊分数 |
 | embedding_ref | TEXT | 向量引用 |

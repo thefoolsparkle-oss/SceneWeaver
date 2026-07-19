@@ -39,7 +39,7 @@ pub fn generate_for_segments(
             &preview_args(segment.start_ms, segment.duration_ms, &preview),
         )?;
 
-        let (black_frame_score, blur_score, quality_score, subtitle_present) =
+        let (black_frame_score, blur_score, quality_score, subtitle_present, game_ui) =
             quality_metrics(&keyframe)?;
         let now = Utc::now().timestamp_millis();
         segment.representative_frame_path = Some(keyframe.to_string_lossy().to_string());
@@ -49,6 +49,7 @@ pub fn generate_for_segments(
         segment.blur_score = Some(blur_score);
         segment.quality_score = Some(quality_score);
         segment.subtitle_present = Some(subtitle_present);
+        segment.game_ui = Some(game_ui);
         segment.updated_at = now;
     }
     Ok(true)
@@ -193,11 +194,11 @@ fn format_seconds(milliseconds: i64) -> String {
     format!("{:.3}", milliseconds.max(0) as f64 / 1000.0)
 }
 
-fn quality_metrics(path: &Path) -> AppResult<(f64, f64, f64, bool)> {
+fn quality_metrics(path: &Path) -> AppResult<(f64, f64, f64, bool, bool)> {
     let image = image::open(path)?.to_luma8();
     let pixels = image.as_raw();
     if pixels.is_empty() {
-        return Ok((1.0, 1.0, 0.0, false));
+        return Ok((1.0, 1.0, 0.0, false, false));
     }
     let black = pixels.iter().filter(|&&pixel| pixel <= 16).count() as f64 / pixels.len() as f64;
     let width = image.width() as usize;
@@ -220,7 +221,13 @@ fn quality_metrics(path: &Path) -> AppResult<(f64, f64, f64, bool)> {
     let detail = (edges / comparisons.max(1) as f64 / 28.0).clamp(0.0, 1.0);
     let blur = 1.0 - detail;
     let quality = ((1.0 - black) * 0.6 + detail * 0.4).clamp(0.0, 1.0);
-    Ok((black, blur, quality, likely_subtitle(&image)))
+    Ok((
+        black,
+        blur,
+        quality,
+        likely_subtitle(&image),
+        likely_game_ui(&image),
+    ))
 }
 
 /// A deliberately conservative local subtitle heuristic. It only looks for a
@@ -259,12 +266,67 @@ fn likely_subtitle(image: &image::GrayImage) -> bool {
     (0.003..=0.16).contains(&bright_ratio) && dark_ratio >= 0.12 && horizontal_coverage >= 0.18
 }
 
+/// A deliberately narrow local HUD hint. It requires separate, compact
+/// high-contrast clusters in *both* lower corners of the representative frame.
+/// This avoids treating central subtitles or a single bright scene object as UI;
+/// it is not a general game-interface or menu classifier.
+fn likely_game_ui(image: &image::GrayImage) -> bool {
+    let width = image.width() as usize;
+    let height = image.height() as usize;
+    if width < 48 || height < 32 {
+        return false;
+    }
+    let corner_width = (width * 3 / 10).max(12);
+    let start_y = height * 3 / 5;
+    hud_corner_active(image, 0, corner_width, start_y, height)
+        && hud_corner_active(image, width - corner_width, width, start_y, height)
+}
+
+fn hud_corner_active(
+    image: &image::GrayImage,
+    start_x: usize,
+    end_x: usize,
+    start_y: usize,
+    end_y: usize,
+) -> bool {
+    let width = image.width() as usize;
+    let pixels = image.as_raw();
+    let mut bright = 0usize;
+    let mut dark = 0usize;
+    let mut occupied_columns = vec![false; end_x - start_x];
+    let mut occupied_rows = vec![false; end_y - start_y];
+    for y in start_y..end_y {
+        for x in start_x..end_x {
+            let value = pixels[y * width + x];
+            if value >= 220 {
+                bright += 1;
+                occupied_columns[x - start_x] = true;
+                occupied_rows[y - start_y] = true;
+            }
+            if value <= 50 {
+                dark += 1;
+            }
+        }
+    }
+    let area = (end_x - start_x) * (end_y - start_y);
+    let bright_ratio = bright as f64 / area as f64;
+    let dark_ratio = dark as f64 / area as f64;
+    let column_coverage = occupied_columns.into_iter().filter(|value| *value).count() as f64
+        / (end_x - start_x) as f64;
+    let row_coverage =
+        occupied_rows.into_iter().filter(|value| *value).count() as f64 / (end_y - start_y) as f64;
+    (0.01..=0.28).contains(&bright_ratio)
+        && dark_ratio >= 0.12
+        && (0.08..=0.75).contains(&column_coverage)
+        && (0.08..=0.75).contains(&row_coverage)
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
 
     use super::{
-        keyframe_args, likely_subtitle, preview_args, preview_duration_ms,
+        keyframe_args, likely_game_ui, likely_subtitle, preview_args, preview_duration_ms,
         representative_timestamp_ms,
     };
 
@@ -278,6 +340,28 @@ mod tests {
     fn chooses_a_frame_inside_the_segment() {
         assert_eq!(representative_timestamp_ms(4_000, 8_000), 5_000);
         assert_eq!(representative_timestamp_ms(4_000, 300), 4_150);
+    }
+
+    #[test]
+    fn detects_only_two_corner_hud_shapes() {
+        let mut image = image::GrayImage::new(64, 48);
+        for y in 32..38 {
+            for x in 2..10 {
+                image.put_pixel(x, y, image::Luma([255]));
+            }
+            for x in 54..62 {
+                image.put_pixel(x, y, image::Luma([255]));
+            }
+        }
+        assert!(likely_game_ui(&image));
+
+        let mut single_corner = image::GrayImage::new(64, 48);
+        for y in 32..38 {
+            for x in 2..10 {
+                single_corner.put_pixel(x, y, image::Luma([255]));
+            }
+        }
+        assert!(!likely_game_ui(&single_corner));
     }
 
     #[test]

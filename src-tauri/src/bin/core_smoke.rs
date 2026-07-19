@@ -534,7 +534,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "-i",
                 "color=c=blue:s=64x48:d=1",
                 "-filter_complex",
-                "[0:v][1:v]concat=n=2:v=1:a=0",
+                "[0:v]drawbox=x=2:y=32:w=8:h=6:color=white:t=fill,drawbox=x=54:y=32:w=8:h=6:color=white:t=fill[v0];[1:v]drawbox=x=2:y=32:w=8:h=6:color=white:t=fill,drawbox=x=54:y=32:w=8:h=6:color=white:t=fill[v1];[v0][v1]concat=n=2:v=1:a=0",
                 "-c:v",
                 "libx264",
             ])
@@ -590,15 +590,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         assert!(video_segments
             .iter()
             .any(|segment| segment.subtitle_present.is_some()));
+        assert!(
+            video_segments
+                .iter()
+                .any(|segment| segment.game_ui == Some(true)),
+            "synthetic dual-corner HUD must be detected automatically"
+        );
 
         // Subtitle is a structured segment signal, not merely a filename
         // keyword. Subtitle, black-frame and blur labels must be usable as
         // hard SQLite constraints even by semantic/entity retrieval paths.
         video_segments[0].subtitle_present = Some(true);
+        video_segments[0].game_ui = Some(true);
         video_segments[0].black_frame_score = Some(0.9);
         video_segments[0].blur_score = Some(0.9);
         assert!(video_segments.len() >= 2, "test video must have two shots");
         video_segments[1].subtitle_present = Some(false);
+        video_segments[1].game_ui = Some(false);
         video_segments[1].black_frame_score = Some(0.1);
         video_segments[1].blur_score = Some(0.1);
         db.replace_segments(&video_asset.id, &video_segments)?;
@@ -616,6 +624,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .any(|asset| asset.id == video_asset.id));
         assert!(db
             .assets_matching_nonsemantic_filters(&subtitle_request, 10)?
+            .iter()
+            .any(|asset| asset.id == video_asset.id));
+        let ui_request = SearchRequest {
+            raw_query: String::new(),
+            must: vec!["HUD".to_string()],
+            should: vec![],
+            must_not: vec![],
+            media_types: vec!["video".to_string()],
+            min_quality_score: None,
+        };
+        assert!(db
+            .search_assets_with_conditions(&ui_request, 10)?
+            .iter()
+            .any(|asset| asset.id == video_asset.id));
+        let clean_ui_segment_request = SearchRequest {
+            must: vec![],
+            must_not: vec!["game ui".to_string()],
+            ..ui_request
+        };
+        assert!(db
+            .assets_matching_nonsemantic_filters(&clean_ui_segment_request, 10)?
             .iter()
             .any(|asset| asset.id == video_asset.id));
         let clean_subtitle_segment_request = SearchRequest {

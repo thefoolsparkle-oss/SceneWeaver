@@ -66,7 +66,7 @@ function SegmentPanelCard({ assetId, segment }: { assetId: string; segment: Segm
       <div className="min-w-0 flex-1">
         <p className="font-medium">#{segment.segment_index + 1} · {formatDuration(segment.duration_ms)}</p>
         <p className="mt-1 text-neutral-500">{formatTimecode(segment.start_ms)} – {formatTimecode(segment.end_ms)}</p>
-        <p className="mt-1 text-xs text-neutral-500">质量 {quality} · 黑帧 {formatMetric(segment.black_frame_score)} · 模糊 {formatMetric(segment.blur_score)} · 字幕提示 {segment.subtitle_present === null ? '待分析' : segment.subtitle_present ? '有' : '无'}</p>
+        <p className="mt-1 text-xs text-neutral-500">质量 {quality} · 黑帧 {formatMetric(segment.black_frame_score)} · 模糊 {formatMetric(segment.blur_score)} · 字幕提示 {segment.subtitle_present === null ? '待分析' : segment.subtitle_present ? '有' : '无'} · HUD 提示 {segment.game_ui === null ? '待分析' : segment.game_ui ? '有' : '无'}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" onClick={() => copyToClipboard(formatTimecode(segment.start_ms))} className="rounded border px-2 py-1 text-xs">复制入点时间码</button>
           <button type="button" onClick={() => setShowPreview((value) => !value)} disabled={!segment.preview_path} className="rounded border px-2 py-1 text-xs disabled:opacity-50">{showPreview ? '隐藏预览' : '播放短预览'}</button>
