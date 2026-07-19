@@ -391,6 +391,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     db.replace_segments(&primary_asset.id, &[])?;
     assert_eq!(db.list_select_items(&default_collection.id)?.len(), 1);
 
+    // A source replacement must invalidate content-derived vectors and
+    // segment ranges while keeping the stable asset-level select intact.
+    let stale_segments =
+        sceneweaver_lib::core::scene_detect::build_segments(&primary_asset.id, 2_000, &[1_000]);
+    db.replace_segments(&primary_asset.id, &stale_segments)?;
+    db.add_segment_to_default_selects(&primary_asset.id, &stale_segments[0].id)?;
+    db.set_entity_asset_feedback(&entity.id, &primary_asset.id, true)?;
+    assert!(db
+        .list_select_items(&default_collection.id)?
+        .iter()
+        .any(|item| item.segment_id.is_some()));
+    let feedback_provider_count: i64 = rusqlite::Connection::open(root.join("sceneweaver.db"))?
+        .query_row(
+            "SELECT COUNT(*) FROM entity_reference_embeddings e JOIN entity_references r ON r.id = e.reference_id WHERE r.entity_id = ?1 AND e.provider_id = 'test'",
+            [&entity.id],
+            |row| row.get(0),
+        )?;
+    assert_eq!(feedback_provider_count, 1);
+
     let corrupt_image = media_root.join("损坏素材.png");
     std::fs::write(&corrupt_image, b"not an image")?;
     let scan_with_corrupt_file = scanner.scan_library(&library, &control, &progress)?;
@@ -416,6 +435,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(
         (changed_asset.width, changed_asset.height),
         (Some(48), Some(27))
+    );
+    let remaining_embeddings: i64 = rusqlite::Connection::open(root.join("sceneweaver.db"))?
+        .query_row(
+            "SELECT COUNT(*) FROM asset_embeddings WHERE asset_id = ?1",
+            [&primary_asset.id],
+            |row| row.get(0),
+        )?;
+    assert_eq!(remaining_embeddings, 1);
+    assert!(db.list_segments(&primary_asset.id)?.is_empty());
+    assert!(db
+        .list_select_items(&default_collection.id)?
+        .iter()
+        .all(|item| item.segment_id.is_none()));
+    let stale_feedback_provider_count: i64 = rusqlite::Connection::open(root.join("sceneweaver.db"))?
+        .query_row(
+            "SELECT COUNT(*) FROM entity_reference_embeddings e JOIN entity_references r ON r.id = e.reference_id WHERE r.entity_id = ?1 AND e.provider_id = 'test'",
+            [&entity.id],
+            |row| row.get(0),
+        )?;
+    assert_eq!(stale_feedback_provider_count, 0);
+    assert_eq!(
+        db.similar_assets_for_entity(&entity.id, 5)?[0].id,
+        primary_asset.id
     );
 
     std::fs::remove_file(&image_path)?;

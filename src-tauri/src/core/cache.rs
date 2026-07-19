@@ -50,6 +50,41 @@ impl CacheManager {
         self.root.join("models")
     }
 
+    /// Removes media derivatives tied to one asset while leaving the model
+    /// cache and derivatives belonging to every other asset untouched.
+    ///
+    /// Asset ids are generated UUIDs, so the prefix cannot overlap with a
+    /// different asset id. This is used before a changed source file is
+    /// re-indexed; otherwise an old keyframe or short preview could be shown
+    /// for the new bytes at the same filesystem path.
+    pub fn remove_asset_derivatives(&self, asset_id: &str) -> AppResult<u64> {
+        let mut removed_bytes = 0u64;
+        for (subdirectory, prefix) in [
+            ("thumbnails", format!("{asset_id}_")),
+            ("proxies", format!("{asset_id}_")),
+            ("keyframes", format!("{asset_id}_")),
+        ] {
+            let directory = self.root.join(subdirectory);
+            if !directory.is_dir() {
+                continue;
+            }
+            for entry in std::fs::read_dir(directory)? {
+                let entry = entry?;
+                if !entry.file_type()?.is_file() {
+                    continue;
+                }
+                let Some(file_name) = entry.file_name().to_str().map(str::to_string) else {
+                    continue;
+                };
+                if file_name.starts_with(&prefix) {
+                    removed_bytes += entry.metadata()?.len();
+                    std::fs::remove_file(entry.path())?;
+                }
+            }
+        }
+        Ok(removed_bytes)
+    }
+
     pub fn clear_cache(&self) -> AppResult<u64> {
         let mut total = 0u64;
         for sub in ["thumbnails", "proxies", "keyframes", "waveforms"] {

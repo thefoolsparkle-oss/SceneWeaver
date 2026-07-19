@@ -177,10 +177,10 @@ impl Scanner {
         let normalized = normalize_path(path);
         let quick_fp = quick_fingerprint(&normalized, size, modified);
 
-        if let Some(existing) = self
+        let existing = self
             .db
-            .find_asset_by_library_path(&library.id, &normalized)?
-        {
+            .find_asset_by_library_path(&library.id, &normalized)?;
+        if let Some(existing) = existing.as_ref() {
             if !needs_reindex(
                 &existing.quick_fingerprint,
                 &quick_fp,
@@ -188,7 +188,7 @@ impl Scanner {
             ) {
                 // 如果不在线则恢复为 indexed
                 if existing.status == AssetStatus::Offline {
-                    let mut updated = existing;
+                    let mut updated = existing.clone();
                     updated.status = AssetStatus::Indexed;
                     updated.updated_at = Utc::now().timestamp_millis();
                     self.db.create_or_update_asset(&updated)?;
@@ -238,12 +238,11 @@ impl Scanner {
             thumbnail_data_url: None,
         };
 
-        if let Some(existing) = self
-            .db
-            .find_asset_by_library_path(&library.id, &normalized)?
-        {
+        if let Some(existing) = existing {
             asset.id = existing.id;
             asset.created_at = existing.created_at;
+            self.db.invalidate_asset_content_derivatives(&asset.id)?;
+            self.thumbnail.remove_derivatives_for_asset(&asset.id)?;
         }
 
         // ffprobe 元数据
@@ -293,6 +292,7 @@ impl Scanner {
                 Err(error) => log::warn!("建立本地视觉索引失败 {}: {error}", path.display()),
             }
         }
+        self.db.sync_entity_asset_reference_embeddings(&asset.id)?;
         self.db
             .mark_asset_seen(&library.id, &normalized, scan_marker)?;
         Ok(true)

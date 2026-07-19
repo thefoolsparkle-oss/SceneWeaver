@@ -18,6 +18,10 @@ impl ThumbnailService {
         Self { cache }
     }
 
+    pub fn remove_derivatives_for_asset(&self, asset_id: &str) -> AppResult<u64> {
+        self.cache.remove_asset_derivatives(asset_id)
+    }
+
     pub fn generate_for_asset(&self, asset: &Asset) -> AppResult<Option<PathBuf>> {
         let output_path = self.cache.thumbnail_path(&asset.id, "cover");
         if output_path.exists() {

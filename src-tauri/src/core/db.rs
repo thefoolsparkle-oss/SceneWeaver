@@ -454,6 +454,57 @@ impl Database {
         Ok(())
     }
 
+    /// Invalidates every derived signal for a source file whose bytes changed.
+    ///
+    /// `asset_id` stays stable across an incremental re-scan, so keeping its
+    /// vectors would make a semantic search return the *previous* image or
+    /// video. Segment-level selects are also tied to old timing and must not
+    /// survive a replacement. Asset-level selects, user tags and favourites
+    /// deliberately remain: they are choices about the library item itself.
+    pub fn invalidate_asset_content_derivatives(&self, asset_id: &str) -> AppResult<()> {
+        let mut conn = self.open()?;
+        let transaction = conn.transaction()?;
+        transaction.execute(
+            "DELETE FROM asset_embeddings WHERE asset_id = ?1",
+            [asset_id],
+        )?;
+        transaction.execute(
+            "DELETE FROM entity_reference_embeddings WHERE reference_id IN (SELECT id FROM entity_references WHERE asset_id = ?1)",
+            [asset_id],
+        )?;
+        transaction.execute(
+            "DELETE FROM selects_items WHERE segment_id IN (SELECT id FROM segments WHERE asset_id = ?1)",
+            [asset_id],
+        )?;
+        transaction.execute("DELETE FROM segments WHERE asset_id = ?1", [asset_id])?;
+        transaction.commit()?;
+        Ok(())
+    }
+
+    /// Rebuilds provider-scoped entity feedback vectors from the current asset
+    /// vectors. This keeps an entity reference useful after an incremental
+    /// source update without preserving a stale CLIP vector that requires an
+    /// explicit semantic re-index.
+    pub fn sync_entity_asset_reference_embeddings(&self, asset_id: &str) -> AppResult<()> {
+        let now = chrono::Utc::now().timestamp_millis();
+        let mut conn = self.open()?;
+        let transaction = conn.transaction()?;
+        transaction.execute(
+            "DELETE FROM entity_reference_embeddings WHERE reference_id IN (SELECT id FROM entity_references WHERE asset_id = ?1)",
+            [asset_id],
+        )?;
+        transaction.execute(
+            "INSERT INTO entity_reference_embeddings (reference_id, provider_id, model_version, vector_json, created_at, updated_at) SELECT r.id, e.provider_id, e.model_version, e.vector_json, ?2, ?2 FROM entity_references r JOIN asset_embeddings e ON e.asset_id = r.asset_id WHERE r.asset_id = ?1",
+            params![asset_id, now],
+        )?;
+        transaction.execute(
+            "UPDATE entity_references SET embedding_ref = (SELECT vector_json FROM asset_embeddings WHERE asset_id = ?1 AND provider_id = ?2) WHERE asset_id = ?1",
+            params![asset_id, crate::providers::visual_embedding::PROVIDER_ID],
+        )?;
+        transaction.commit()?;
+        Ok(())
+    }
+
     pub fn similar_assets(&self, reference_asset_id: &str, limit: usize) -> AppResult<Vec<Asset>> {
         self.similar_assets_for_provider(
             reference_asset_id,

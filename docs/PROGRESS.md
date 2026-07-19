@@ -17,7 +17,7 @@
 
 `core_smoke` 已用合成 v6 SQLite 数据库验证上述迁移会保留既有向量，并允许同一素材写入第二个 Provider。
 
-本轮还修复了 Entity 参考向量在多 Provider 数据库中未限定 Provider 的问题：实体颜色参考和资产颜色索引现在明确使用 `local-color-histogram`，不会把 24 维颜色向量与 CLIP 向量混合排名；smoke 同时验证新建数据库初始即为 v7，重开不会重放旧迁移。
+本轮还修复了 Entity 参考向量在多 Provider 数据库中未限定 Provider 的问题：实体颜色参考和资产颜色索引现在明确使用 `local-color-histogram`，不会把 24 维颜色向量与 CLIP 向量混合排名；smoke 同时验证新建数据库初始即为 v8，重开不会重放旧迁移。
 
 本轮已从 ONNX Runtime 官方 Windows x64 CPU 发布包随应用加入 `onnxruntime.dll`；`core_smoke` 验证运行库存在且不会隐式下载模型。NSIS 资源配置会将其与 EXE 同级携带。
 
@@ -122,7 +122,8 @@ ACG 查询预设已接入搜索页（角色近景、雨夜侧脸、战斗无 UI/
   - 安装 FFmpeg 后，`core_smoke` 会自动生成红蓝切换测试视频并验证视频元数据、镜头片段、关键帧、短预览、质量分、黑帧分和模糊分；无 FFmpeg 的环境会跳过该可选检查。
   - `core_smoke` 现生成超过 260 字符的中文路径素材并混入损坏 PNG，验证超长路径可索引且单个损坏素材不会阻断其它文件扫描。
   - 新增可选本地 CLIP 图文 Provider、设置页模型状态/明确下载/语义重建操作，以及按 Provider 隔离的语义文本与参考图检索；未安装模型不联网并继续走已有本地检索路径。
-  - Entity 参考向量新增独立的 Provider 维度（schema v8）；从旧 `embedding_ref` 数据迁移为颜色 Provider。实体的资产“是/非”反馈会同步保存当前素材已有的各 Provider 向量，重新建立语义索引也会处理可访问的实体参考图与素材反馈来源。
+- Entity 参考向量新增独立的 Provider 维度（schema v8）；从旧 `embedding_ref` 数据迁移为颜色 Provider。实体的资产“是/非”反馈会同步保存当前素材已有的各 Provider 向量，重新建立语义索引也会处理可访问的实体参考图与素材反馈来源。
+  - 增量扫描发现已索引源文件变化时，会原子清理该素材的旧 Provider 向量、镜头片段和片段级 Selects，并清理同一素材的缩略图/关键帧/预览缓存；重新建立基础视觉向量后，会同步保留实体反馈的当前颜色向量，旧语义向量必须经用户明确的语义重建操作恢复。
 
 ## 尚未完成功能
 
