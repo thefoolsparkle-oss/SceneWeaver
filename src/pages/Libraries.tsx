@@ -2,14 +2,19 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { open } from '@tauri-apps/plugin-dialog';
 import { Link } from 'react-router-dom';
-import { createLibrary, listLibraries, reconnectLibrary, startScan } from '@/api';
-import type { Library } from '@/types';
+import { createLibrary, listJobs, listLibraries, reconnectLibrary, startScan } from '@/api';
+import type { Job, Library } from '@/types';
 
 export default function Libraries() {
   const queryClient = useQueryClient();
   const { data: libraries, isLoading } = useQuery({
     queryKey: ['libraries'],
     queryFn: listLibraries,
+  });
+  const { data: jobs } = useQuery({
+    queryKey: ['jobs'],
+    queryFn: listJobs,
+    refetchInterval: 1000,
   });
   const [name, setName] = useState('');
   const [path, setPath] = useState('');
@@ -69,6 +74,17 @@ export default function Libraries() {
     reconnectMutation.mutate({ library_id: library.id, root_path: selected });
   };
 
+  const activeScanLibraryIds = new Set(
+    jobs
+      ?.filter(
+        (job: Job) =>
+          job.job_type === 'scan' &&
+          job.library_id &&
+          ['pending', 'running', 'paused'].includes(job.status),
+      )
+      .map((job) => job.library_id),
+  );
+
   return (
     <div className="p-8">
       <h1 className="mb-6 text-2xl font-bold">素材库</h1>
@@ -119,6 +135,11 @@ export default function Libraries() {
           重新连接失败：{reconnectMutation.error?.message ?? '未知错误'}
         </p>
       )}
+      {scanMutation.isError && (
+        <p className="mb-4 text-sm text-red-600">
+          无法启动扫描：{scanMutation.error?.message ?? '未知错误'}
+        </p>
+      )}
 
       {isLoading ? (
         <p className="text-neutral-500">加载中…</p>
@@ -131,9 +152,13 @@ export default function Libraries() {
               key={lib.id}
               library={lib}
               onScan={() => scanMutation.mutate(lib.id)}
-              isScanning={scanMutation.isPending && scanMutation.variables === lib.id}
+              isScanning={
+                (scanMutation.isPending && scanMutation.variables === lib.id) ||
+                activeScanLibraryIds.has(lib.id)
+              }
               onReconnect={() => reconnect(lib)}
               isReconnecting={reconnectMutation.isPending && reconnectMutation.variables?.library_id === lib.id}
+              hasActiveScan={activeScanLibraryIds.has(lib.id)}
             />
           ))}
         </div>
@@ -148,12 +173,14 @@ function LibraryCard({
   isScanning,
   onReconnect,
   isReconnecting,
+  hasActiveScan,
 }: {
   library: Library;
   onScan: () => void;
   isScanning: boolean;
   onReconnect: () => void;
   isReconnecting: boolean;
+  hasActiveScan: boolean;
 }) {
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950">
@@ -176,7 +203,7 @@ function LibraryCard({
         </button>
         <button
           onClick={onReconnect}
-          disabled={isReconnecting || library.status === 'scanning'}
+          disabled={isReconnecting || library.status === 'scanning' || hasActiveScan}
           title="素材库移动、盘符变化或外接盘重新挂载后，选择新的根目录。相对路径未变化的素材会保留选片、标注和分析结果。"
           className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
         >

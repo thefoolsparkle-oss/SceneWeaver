@@ -187,6 +187,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .list_active_jobs()?
         .iter()
         .all(|active_job| active_job.id != job.id));
+    assert_eq!(
+        reopened
+            .active_scan_job_for_library(&library.id)?
+            .expect("running scan must prevent a duplicate queue entry")
+            .id,
+        interrupted_job.id
+    );
     let recovered = reopened.recover_interrupted_jobs()?;
     assert_eq!(recovered.len(), 1, "only running jobs may be recovered");
     assert_eq!(recovered[0].id, interrupted_job.id);
@@ -207,6 +214,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .expect("paused job must persist")
             .status,
         JobStatus::Paused
+    );
+    assert!(
+        reopened.active_scan_job_for_library(&library.id)?.is_some(),
+        "a recovered pending scan or an intentional paused scan must block duplicates"
     );
     let scanner = Scanner::new(Arc::clone(&db), Arc::clone(&cache));
     let control = JobControl::new();

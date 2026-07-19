@@ -101,6 +101,17 @@ fn enqueue_scan(state: &AppState, library_id: String) -> AppResult<Job> {
             "素材库正在扫描中".to_string(),
         ));
     }
+    if let Some(existing) = state.db.active_scan_job_for_library(&library_id)? {
+        let action = if existing.status == JobStatus::Paused {
+            "请恢复或取消该暂停任务"
+        } else {
+            "该任务已在队列中"
+        };
+        return Err(crate::core::error::AppError::Other(format!(
+            "素材库已有扫描任务（{}），{}",
+            existing.id, action
+        )));
+    }
 
     let now = Utc::now().timestamp_millis();
     let job = Job {

@@ -1598,6 +1598,26 @@ impl Database {
         rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
     }
 
+    /// A library can have at most one scan in flight. A paused scan still owns
+    /// the library's checkpoint and must be resumed or cancelled, not duplicated.
+    pub fn active_scan_job_for_library(&self, library_id: &str) -> AppResult<Option<Job>> {
+        let conn = self.open()?;
+        let mut stmt = conn.prepare(
+            "SELECT id, job_type, library_id, asset_id, status, priority, progress,
+                    current_step, checkpoint_json, error_code, error_message,
+                    started_at, finished_at, created_at, updated_at
+             FROM jobs
+             WHERE job_type = 'scan' AND library_id = ?1
+               AND status IN ('pending', 'running', 'paused')
+             ORDER BY CASE status WHEN 'running' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+                      created_at ASC
+             LIMIT 1",
+        )?;
+        stmt.query_row([library_id], row_to_job)
+            .optional()
+            .map_err(AppError::from)
+    }
+
     /// Converts jobs that were running when the process stopped into pending
     /// work. Paused jobs are intentionally untouched: pausing is an explicit
     /// user decision and must survive an application restart.
