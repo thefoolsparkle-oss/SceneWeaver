@@ -58,6 +58,26 @@ impl SegmentLabel {
         }
     }
 
+    /// Predicate scoped to one candidate segment. The negative form treats a
+    /// missing analysis value as "not flagged", so an unanalysed fallback
+    /// segment remains usable instead of being silently discarded.
+    pub fn segment_predicate(self, positive: bool) -> &'static str {
+        match (self, positive) {
+            (SegmentLabel::Subtitle, true) => "segments.subtitle_present = 1",
+            (SegmentLabel::Subtitle, false) => {
+                "(segments.subtitle_present IS NULL OR segments.subtitle_present = 0)"
+            }
+            (SegmentLabel::BlackFrame, true) => "segments.black_frame_score >= 0.85",
+            (SegmentLabel::BlackFrame, false) => {
+                "(segments.black_frame_score IS NULL OR segments.black_frame_score < 0.85)"
+            }
+            (SegmentLabel::Blurry, true) => "segments.blur_score >= 0.80",
+            (SegmentLabel::Blurry, false) => {
+                "(segments.blur_score IS NULL OR segments.blur_score < 0.80)"
+            }
+        }
+    }
+
     pub fn matches_segment(self, segment: &Segment) -> bool {
         match self {
             SegmentLabel::Subtitle => segment.subtitle_present == Some(true),

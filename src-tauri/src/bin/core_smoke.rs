@@ -597,6 +597,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         video_segments[0].subtitle_present = Some(true);
         video_segments[0].black_frame_score = Some(0.9);
         video_segments[0].blur_score = Some(0.9);
+        assert!(video_segments.len() >= 2, "test video must have two shots");
+        video_segments[1].subtitle_present = Some(false);
+        video_segments[1].black_frame_score = Some(0.1);
+        video_segments[1].blur_score = Some(0.1);
         db.replace_segments(&video_asset.id, &video_segments)?;
         let subtitle_request = SearchRequest {
             raw_query: String::new(),
@@ -610,15 +614,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .search_assets_with_conditions(&subtitle_request, 10)?
             .iter()
             .any(|asset| asset.id == video_asset.id));
-        let exclude_subtitle_request = SearchRequest {
+        assert!(db
+            .assets_matching_nonsemantic_filters(&subtitle_request, 10)?
+            .iter()
+            .any(|asset| asset.id == video_asset.id));
+        let clean_subtitle_segment_request = SearchRequest {
             must: vec![],
             must_not: vec!["subtitle".to_string()],
             ..subtitle_request
         };
         assert!(db
-            .assets_matching_nonsemantic_filters(&exclude_subtitle_request, 10)?
+            .assets_matching_nonsemantic_filters(&clean_subtitle_segment_request, 10)?
             .iter()
-            .all(|asset| asset.id != video_asset.id));
+            .any(|asset| asset.id == video_asset.id));
 
         let quality_label_request = SearchRequest {
             raw_query: String::new(),
@@ -632,14 +640,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .search_assets_with_conditions(&quality_label_request, 10)?
             .iter()
             .any(|asset| asset.id == video_asset.id));
-        let exclude_blurry_request = SearchRequest {
+        let safe_segment_request = SearchRequest {
             must: vec![],
             should: vec![],
             must_not: vec!["blur".to_string()],
+            ..quality_label_request.clone()
+        };
+        assert!(db
+            .assets_matching_nonsemantic_filters(&safe_segment_request, 10)?
+            .iter()
+            .any(|asset| asset.id == video_asset.id));
+        let conflicting_segment_request = SearchRequest {
+            must: vec!["字幕".to_string()],
+            should: vec![],
+            must_not: vec!["模糊".to_string()],
             ..quality_label_request
         };
         assert!(db
-            .assets_matching_nonsemantic_filters(&exclude_blurry_request, 10)?
+            .search_assets_with_conditions(&conflicting_segment_request, 10)?
             .iter()
             .all(|asset| asset.id != video_asset.id));
     }

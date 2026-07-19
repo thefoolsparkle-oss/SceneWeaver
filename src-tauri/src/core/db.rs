@@ -343,10 +343,24 @@ impl Database {
         limit: usize,
     ) -> AppResult<Vec<Asset>> {
         let mut must = request.must.clone();
-        if must.is_empty() && !request.raw_query.trim().is_empty() {
+        if must.is_empty() && request.must_not.is_empty() && !request.raw_query.trim().is_empty() {
             must.push(request.raw_query.trim().to_string());
         }
-        if must.is_empty() && request.must_not.is_empty() {
+        let must_segment_labels = must
+            .iter()
+            .filter_map(|term| segment_label_for_term(term))
+            .collect::<Vec<_>>();
+        must.retain(|term| segment_label_for_term(term).is_none());
+        let must_not_segment_labels = request
+            .must_not
+            .iter()
+            .filter_map(|term| segment_label_for_term(term))
+            .collect::<Vec<_>>();
+        if must.is_empty()
+            && must_segment_labels.is_empty()
+            && request.should.is_empty()
+            && request.must_not.is_empty()
+        {
             return Ok(Vec::new());
         }
         let mut score_sql = String::from("0");
@@ -380,12 +394,13 @@ impl Database {
             sql.push_str(" AND (media_type = 'image' OR EXISTS (SELECT 1 FROM segments WHERE segments.asset_id = assets.id AND quality_score >= ?))");
             values.push(min_quality_score.into());
         }
+        if let Some(predicate) =
+            segment_labels_predicate(&must_segment_labels, &must_not_segment_labels)
+        {
+            sql.push_str(" AND ");
+            sql.push_str(&predicate);
+        }
         for term in must {
-            if let Some(label) = segment_label_for_term(&term) {
-                sql.push_str(" AND ");
-                sql.push_str(label.sql_predicate(true));
-                continue;
-            }
             sql.push_str(" AND (file_name LIKE ? ESCAPE '\\' OR file_path LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM tags WHERE scope_type = 'asset' AND scope_id = assets.id AND namespace = 'acg_creator' AND value LIKE ? ESCAPE '\\'))");
             let pattern = search_pattern(&term);
             values.push(pattern.clone().into());
@@ -393,9 +408,7 @@ impl Database {
             values.push(pattern.into());
         }
         for term in &request.must_not {
-            if let Some(label) = segment_label_for_term(term) {
-                sql.push_str(" AND ");
-                sql.push_str(label.sql_predicate(false));
+            if segment_label_for_term(term).is_some() {
                 continue;
             }
             sql.push_str(" AND NOT (file_name LIKE ? ESCAPE '\\' OR file_path LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM tags WHERE scope_type = 'asset' AND scope_id = assets.id AND namespace = 'acg_creator' AND value LIKE ? ESCAPE '\\'))");
@@ -415,7 +428,8 @@ impl Database {
 
     /// Applies the non-text filters used by semantic retrieval. Textual Must
     /// terms intentionally remain available to the embedding query, while
-    /// Must Not, type and quality filters remain hard SQLite constraints.
+    /// structured segment labels, Must Not, type and quality filters remain
+    /// hard SQLite constraints.
     pub fn assets_matching_nonsemantic_filters(
         &self,
         request: &SearchRequest,
@@ -439,10 +453,24 @@ impl Database {
             sql.push_str(" AND (media_type = 'image' OR EXISTS (SELECT 1 FROM segments WHERE segments.asset_id = assets.id AND quality_score >= ?))");
             values.push(min_quality_score.into());
         }
+        let must_segment_labels = request
+            .must
+            .iter()
+            .filter_map(|term| segment_label_for_term(term))
+            .collect::<Vec<_>>();
+        let must_not_segment_labels = request
+            .must_not
+            .iter()
+            .filter_map(|term| segment_label_for_term(term))
+            .collect::<Vec<_>>();
+        if let Some(predicate) =
+            segment_labels_predicate(&must_segment_labels, &must_not_segment_labels)
+        {
+            sql.push_str(" AND ");
+            sql.push_str(&predicate);
+        }
         for term in &request.must_not {
-            if let Some(label) = segment_label_for_term(term) {
-                sql.push_str(" AND ");
-                sql.push_str(label.sql_predicate(false));
+            if segment_label_for_term(term).is_some() {
                 continue;
             }
             sql.push_str(" AND NOT (file_name LIKE ? ESCAPE '\\' OR file_path LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM tags WHERE scope_type = 'asset' AND scope_id = assets.id AND namespace = 'acg_creator' AND value LIKE ? ESCAPE '\\'))");
@@ -1516,6 +1544,24 @@ impl Database {
         )?;
         Ok(())
     }
+}
+
+fn segment_labels_predicate(
+    positive: &[SegmentLabel],
+    negative: &[SegmentLabel],
+) -> Option<String> {
+    if positive.is_empty() && negative.is_empty() {
+        return None;
+    }
+    let mut predicates = positive
+        .iter()
+        .map(|label| label.segment_predicate(true))
+        .collect::<Vec<_>>();
+    predicates.extend(negative.iter().map(|label| label.segment_predicate(false)));
+    Some(format!(
+        "EXISTS (SELECT 1 FROM segments WHERE segments.asset_id = assets.id AND {})",
+        predicates.join(" AND ")
+    ))
 }
 
 fn search_pattern(term: &str) -> String {
