@@ -352,6 +352,12 @@ impl Database {
         let mut score_sql = String::from("0");
         let mut score_values = Vec::<rusqlite::types::Value>::new();
         for term in &request.should {
+            if let Some(label) = segment_label_for_term(term) {
+                score_sql.push_str(" + CASE WHEN ");
+                score_sql.push_str(label.sql_predicate(true));
+                score_sql.push_str(" THEN 1 ELSE 0 END");
+                continue;
+            }
             score_sql.push_str(" + CASE WHEN (file_name LIKE ? ESCAPE '\\' OR file_path LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM tags WHERE scope_type = 'asset' AND scope_id = assets.id AND namespace = 'acg_creator' AND value LIKE ? ESCAPE '\\')) THEN 1 ELSE 0 END");
             let pattern = search_pattern(term);
             score_values.push(pattern.clone().into());
@@ -375,6 +381,11 @@ impl Database {
             values.push(min_quality_score.into());
         }
         for term in must {
+            if let Some(label) = segment_label_for_term(&term) {
+                sql.push_str(" AND ");
+                sql.push_str(label.sql_predicate(true));
+                continue;
+            }
             sql.push_str(" AND (file_name LIKE ? ESCAPE '\\' OR file_path LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM tags WHERE scope_type = 'asset' AND scope_id = assets.id AND namespace = 'acg_creator' AND value LIKE ? ESCAPE '\\'))");
             let pattern = search_pattern(&term);
             values.push(pattern.clone().into());
@@ -382,6 +393,11 @@ impl Database {
             values.push(pattern.into());
         }
         for term in &request.must_not {
+            if let Some(label) = segment_label_for_term(term) {
+                sql.push_str(" AND ");
+                sql.push_str(label.sql_predicate(false));
+                continue;
+            }
             sql.push_str(" AND NOT (file_name LIKE ? ESCAPE '\\' OR file_path LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM tags WHERE scope_type = 'asset' AND scope_id = assets.id AND namespace = 'acg_creator' AND value LIKE ? ESCAPE '\\'))");
             let pattern = search_pattern(term);
             values.push(pattern.clone().into());
@@ -424,6 +440,11 @@ impl Database {
             values.push(min_quality_score.into());
         }
         for term in &request.must_not {
+            if let Some(label) = segment_label_for_term(term) {
+                sql.push_str(" AND ");
+                sql.push_str(label.sql_predicate(false));
+                continue;
+            }
             sql.push_str(" AND NOT (file_name LIKE ? ESCAPE '\\' OR file_path LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM tags WHERE scope_type = 'asset' AND scope_id = assets.id AND namespace = 'acg_creator' AND value LIKE ? ESCAPE '\\'))");
             let pattern = search_pattern(term);
             values.push(pattern.clone().into());

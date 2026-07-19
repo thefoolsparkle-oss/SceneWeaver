@@ -39,7 +39,8 @@ pub fn generate_for_segments(
             &preview_args(segment.start_ms, segment.duration_ms, &preview),
         )?;
 
-        let (black_frame_score, blur_score, quality_score) = quality_metrics(&keyframe)?;
+        let (black_frame_score, blur_score, quality_score, subtitle_present) =
+            quality_metrics(&keyframe)?;
         let now = Utc::now().timestamp_millis();
         segment.representative_frame_path = Some(keyframe.to_string_lossy().to_string());
         segment.thumbnail_path = Some(keyframe.to_string_lossy().to_string());
@@ -47,6 +48,7 @@ pub fn generate_for_segments(
         segment.black_frame_score = Some(black_frame_score);
         segment.blur_score = Some(blur_score);
         segment.quality_score = Some(quality_score);
+        segment.subtitle_present = Some(subtitle_present);
         segment.updated_at = now;
     }
     Ok(true)
@@ -191,11 +193,11 @@ fn format_seconds(milliseconds: i64) -> String {
     format!("{:.3}", milliseconds.max(0) as f64 / 1000.0)
 }
 
-fn quality_metrics(path: &Path) -> AppResult<(f64, f64, f64)> {
+fn quality_metrics(path: &Path) -> AppResult<(f64, f64, f64, bool)> {
     let image = image::open(path)?.to_luma8();
     let pixels = image.as_raw();
     if pixels.is_empty() {
-        return Ok((1.0, 1.0, 0.0));
+        return Ok((1.0, 1.0, 0.0, false));
     }
     let black = pixels.iter().filter(|&&pixel| pixel <= 16).count() as f64 / pixels.len() as f64;
     let width = image.width() as usize;
@@ -218,14 +220,53 @@ fn quality_metrics(path: &Path) -> AppResult<(f64, f64, f64)> {
     let detail = (edges / comparisons.max(1) as f64 / 28.0).clamp(0.0, 1.0);
     let blur = 1.0 - detail;
     let quality = ((1.0 - black) * 0.6 + detail * 0.4).clamp(0.0, 1.0);
-    Ok((black, blur, quality))
+    Ok((black, blur, quality, likely_subtitle(&image)))
+}
+
+/// A deliberately conservative local subtitle heuristic. It only looks for a
+/// small, horizontally distributed cluster of bright pixels in the lower third
+/// of a representative frame; it is not OCR and can be disabled by omitting
+/// FFmpeg-derived keyframes.
+fn likely_subtitle(image: &image::GrayImage) -> bool {
+    let width = image.width() as usize;
+    let height = image.height() as usize;
+    if width < 32 || height < 24 {
+        return false;
+    }
+    let start_y = height * 2 / 3;
+    let region_height = height - start_y;
+    let pixels = image.as_raw();
+    let mut bright = 0usize;
+    let mut dark = 0usize;
+    let mut occupied_columns = vec![false; width];
+    for y in start_y..height {
+        for x in 0..width {
+            let value = pixels[y * width + x];
+            if value >= 220 {
+                bright += 1;
+                occupied_columns[x] = true;
+            }
+            if value <= 50 {
+                dark += 1;
+            }
+        }
+    }
+    let area = width * region_height;
+    let bright_ratio = bright as f64 / area as f64;
+    let dark_ratio = dark as f64 / area as f64;
+    let horizontal_coverage =
+        occupied_columns.into_iter().filter(|value| *value).count() as f64 / width as f64;
+    (0.003..=0.16).contains(&bright_ratio) && dark_ratio >= 0.12 && horizontal_coverage >= 0.18
 }
 
 #[cfg(test)]
 mod tests {
     use std::path::Path;
 
-    use super::{keyframe_args, preview_args, preview_duration_ms, representative_timestamp_ms};
+    use super::{
+        keyframe_args, likely_subtitle, preview_args, preview_duration_ms,
+        representative_timestamp_ms,
+    };
 
     #[test]
     fn caps_preview_and_keeps_short_shots_playable() {
@@ -249,5 +290,21 @@ mod tests {
             preview.last().map(String::as_str),
             Some("C:/cache/中文 preview.mp4")
         );
+    }
+
+    #[test]
+    fn subtitle_heuristic_requires_a_small_lower_high_contrast_cluster() {
+        let mut subtitle_frame = image::GrayImage::from_pixel(120, 80, image::Luma([0]));
+        for y in 62..66 {
+            for x in 20..100 {
+                subtitle_frame.put_pixel(x, y, image::Luma([255]));
+            }
+        }
+        assert!(likely_subtitle(&subtitle_frame));
+        assert!(!likely_subtitle(&image::GrayImage::from_pixel(
+            120,
+            80,
+            image::Luma([0])
+        )));
     }
 }

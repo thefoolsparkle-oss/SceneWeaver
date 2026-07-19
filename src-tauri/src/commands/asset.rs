@@ -4,7 +4,7 @@ use tauri::State;
 
 use crate::core::app_state::AppState;
 use crate::core::error::AppResult;
-use crate::models::Asset;
+use crate::models::{Asset, Segment};
 
 #[tauri::command]
 pub async fn list_assets(state: State<'_, AppState>, library_id: String) -> AppResult<Vec<Asset>> {
@@ -262,6 +262,8 @@ pub async fn search_assets(
     for result in &mut results {
         let acg_tags = state.db.asset_acg_tags(&result.asset.id)?;
         apply_acg_tag_explanations(result, &request, &acg_tags);
+        let segments = state.db.list_segments(&result.asset.id)?;
+        apply_segment_label_explanations(result, &request, &segments);
     }
     // Keyword, CLIP and entity candidates are retrieved through separate
     // paths. Rank only after they have been merged so a later semantic or
@@ -383,6 +385,39 @@ fn tag_matches(acg_tags: &[String], term: &str) -> bool {
         && acg_tags
             .iter()
             .any(|tag| tag.to_lowercase().contains(&normalized))
+}
+
+fn apply_segment_label_explanations(
+    result: &mut crate::models::SearchResult,
+    request: &crate::models::SearchRequest,
+    segments: &[Segment],
+) {
+    for term in &request.must {
+        if is_subtitle_label(term, segments) {
+            result
+                .match_reasons
+                .push(format!("满足必须条件：{term}（本地字幕提示）"));
+            result.score += 2.0;
+        }
+    }
+    for term in &request.should {
+        if is_subtitle_label(term, segments) {
+            result.unmet_should.retain(|unmet| unmet != term);
+            result
+                .match_reasons
+                .push(format!("命中偏好条件：{term}（本地字幕提示）"));
+            result.score += 1.0;
+        }
+    }
+}
+
+fn is_subtitle_label(term: &str, segments: &[Segment]) -> bool {
+    matches!(
+        crate::models::segment_label_for_term(term),
+        Some(crate::models::SegmentLabel::Subtitle)
+    ) && segments
+        .iter()
+        .any(|segment| segment.subtitle_present == Some(true))
 }
 
 fn explain_search_result(

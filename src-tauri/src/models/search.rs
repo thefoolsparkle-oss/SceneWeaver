@@ -25,3 +25,26 @@ pub struct SearchResult {
     pub match_reasons: Vec<String>,
     pub unmet_should: Vec<String>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SegmentLabel {
+    Subtitle,
+}
+
+pub fn segment_label_for_term(term: &str) -> Option<SegmentLabel> {
+    match term.trim().to_lowercase().as_str() {
+        "字幕" | "subtitle" | "subtitles" | "caption" | "captions" => {
+            Some(SegmentLabel::Subtitle)
+        }
+        _ => None,
+    }
+}
+
+impl SegmentLabel {
+    pub fn sql_predicate(self, positive: bool) -> &'static str {
+        match (self, positive) {
+            (SegmentLabel::Subtitle, true) => "EXISTS (SELECT 1 FROM segments WHERE segments.asset_id = assets.id AND segments.subtitle_present = 1)",
+            (SegmentLabel::Subtitle, false) => "NOT EXISTS (SELECT 1 FROM segments WHERE segments.asset_id = assets.id AND segments.subtitle_present = 1)",
+        }
+    }
+}

@@ -570,7 +570,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             sceneweaver_lib::models::MediaType::Video
         );
         assert!(video_asset.duration_ms.unwrap_or(0) >= 1_900);
-        let video_segments = db.list_segments(&video_asset.id)?;
+        let mut video_segments = db.list_segments(&video_asset.id)?;
         assert!(!video_segments.is_empty(), "video must create segments");
         assert!(video_segments
             .iter()
@@ -587,6 +587,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         assert!(video_segments
             .iter()
             .any(|segment| segment.blur_score.is_some()));
+        assert!(video_segments
+            .iter()
+            .any(|segment| segment.subtitle_present.is_some()));
+
+        // Subtitle is a structured segment signal, not merely a filename
+        // keyword: both text and semantic retrieval must apply it as a hard
+        // SQLite constraint.
+        video_segments[0].subtitle_present = Some(true);
+        db.replace_segments(&video_asset.id, &video_segments)?;
+        let subtitle_request = SearchRequest {
+            raw_query: String::new(),
+            must: vec!["字幕".to_string()],
+            should: vec![],
+            must_not: vec![],
+            media_types: vec!["video".to_string()],
+            min_quality_score: None,
+        };
+        assert!(db
+            .search_assets_with_conditions(&subtitle_request, 10)?
+            .iter()
+            .any(|asset| asset.id == video_asset.id));
+        let exclude_subtitle_request = SearchRequest {
+            must: vec![],
+            must_not: vec!["subtitle".to_string()],
+            ..subtitle_request
+        };
+        assert!(db
+            .assets_matching_nonsemantic_filters(&exclude_subtitle_request, 10)?
+            .iter()
+            .all(|asset| asset.id != video_asset.id));
     }
 
     std::fs::remove_dir_all(&root)?;
