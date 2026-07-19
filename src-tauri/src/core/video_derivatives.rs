@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Command, Output, Stdio};
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::Utc;
 
@@ -61,6 +61,56 @@ fn find_ffmpeg() -> AppResult<PathBuf> {
 }
 
 fn run_ffmpeg(executable: &Path, source: &Path, args: &[String]) -> AppResult<()> {
+    if let Some(parent) = args.last().and_then(|output| Path::new(output).parent()) {
+        std::fs::create_dir_all(parent)?;
+    }
+    let mut command = Command::new(executable);
+    command
+        .arg("-hide_banner")
+        .arg("-y")
+        .arg("-i")
+        .arg(source)
+        .args(args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    let output = run_command_with_timeout(
+        &mut command,
+        PROCESS_TIMEOUT,
+        "视频派生文件生成超时（90 秒）；已终止 FFmpeg 子进程",
+    )?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        let details = String::from_utf8_lossy(&output.stderr);
+        let message = details.lines().last().unwrap_or("未知 FFmpeg 错误");
+        Err(AppError::Other(format!(
+            "FFmpeg 生成视频预览失败: {message}"
+        )))
+    }
+}
+
+fn run_command_with_timeout(
+    command: &mut Command,
+    timeout: Duration,
+    timeout_message: &str,
+) -> AppResult<Output> {
+    let mut child = command.spawn()?;
+    let deadline = Instant::now() + timeout;
+    loop {
+        if child.try_wait()?.is_some() {
+            return child.wait_with_output().map_err(AppError::from);
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(AppError::Other(timeout_message.to_string()));
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+#[allow(dead_code)]
+fn run_ffmpeg_legacy(executable: &Path, source: &Path, args: &[String]) -> AppResult<()> {
     if let Some(parent) = args.last().and_then(|output| Path::new(output).parent()) {
         std::fs::create_dir_all(parent)?;
     }

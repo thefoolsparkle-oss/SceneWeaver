@@ -104,6 +104,7 @@
 - 暂停任务在恢复队列中保持暂停，不会在应用重启后被自动重新执行。
 - 若 FFmpeg/ffprobe 可用，合成红蓝切换 MP4 的元数据、镜头、关键帧、短预览、黑帧/模糊/质量指标与视频代表帧索引。
 - 视频首次扫描自动持久化镜头片段及派生结果；FFmpeg 缺失或派生失败时不得中断素材入库。
+- 镜头检测和关键帧/短预览派生均有 90 秒超时；超时后应终止并回收 FFmpeg 子进程，再将该素材安全降级而非阻塞扫描。
 
 它已覆盖可选的合成 FFmpeg 视频派生、基础搜索条件和暂停状态恢复；真实用户视频、完整任务暂停/恢复交互、GUI 搜索流程和专业剪辑软件实际导入仍需补充为独立集成用例。
 
@@ -112,6 +113,8 @@
 `SCENEWEAVER_DOWNLOAD_SEMANTIC_MODEL=1 cargo run --manifest-path src-tauri/Cargo.toml --bin semantic_model_smoke` 仅在环境变量明确确认时从模型源下载配对 CLIP 编码器到独立临时目录，实际生成 512 维图像与文本向量、写入 SQLite 后验证文本检索和 Entity 语义参考检索，最后清理临时模型与数据库。它不属于默认测试，确保普通用户和 CI 不会被隐式下载权重。
 
 `.github/workflows/ci.yml` 在 Windows GitHub Runner 对 `main` 推送和 Pull Request 执行前端 lint/test/build、Rust 格式检查、Rust 测试编译和默认 `core_smoke`。语义模型下载 smoke、FFmpeg 派生断言和安装器交互 smoke 仍保留给显式本地验证。
+
+CI 必须从干净工作目录通过：`build.rs` 会在 Tauri 读取 `bundle.resources` 前，从 Cargo.lock 锁定的 `webview2-com-sys` x64 依赖暂存 `WebView2Loader.dll`。这覆盖了“本机旧 target 文件掩盖 DLL 缺失”的回归场景；本地 NSIS smoke 继续验证安装后的 DLL 与 EXE 同级且可启动。
 
 2026-07-19 已实际运行该 smoke：图像与文本各返回 512 维向量，图文余弦值为 0.279；SQLite 文本检索和 Entity 语义参考检索均返回目标素材，临时模型目录已由 smoke 清理。
 

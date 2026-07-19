@@ -19,7 +19,7 @@ npm run tauri build
 - `src-tauri/target/release/bundle/msi/*.msi`
 - `src-tauri/target/release/bundle/nsis/*.exe`
 
-当前验证状态：当前代码的 `src-tauri/target/release/sceneweaver.exe` 与最新 `src-tauri/target/release/bundle/nsis/SceneWeaver_0.1.0_x64-setup.exe` 已成功生成。GNU 工具链下需在 `bundle.resources` 显式将构建生成的 `WebView2Loader.dll` 安装到 EXE 同级目录；同一资源清单也会携带官方 ONNX Runtime Windows x64 CPU 的 `onnxruntime.dll`，供可选本地语义模型使用。2026-07-19 已将当前安装器静默安装到专用临时目录，确认 EXE（57,950,024 bytes）、`WebView2Loader.dll`（160,320 bytes）和 `onnxruntime.dll`（14,897,976 bytes）三者同级，应用隐藏启动后存活超过 8 秒；测试安装目录已清理。尚未在干净 Windows 环境完成交互式安装、卸载、升级和 MSI 验证。
+当前验证状态：当前代码的 `src-tauri/target/release/sceneweaver.exe` 与最新 `src-tauri/target/release/bundle/nsis/SceneWeaver_0.1.0_x64-setup.exe` 已成功生成。`build.rs` 会在 Tauri 校验资源前，从 Cargo.lock 锁定的 `webview2-com-sys` x64 依赖暂存官方 `WebView2Loader.dll` 到构建资源路径，因此干净工作目录的 `cargo test --no-run` 和打包不再依赖先前残留的 `target` 文件；`bundle.resources` 再将它安装到 EXE 同级目录。同一资源清单也会携带官方 ONNX Runtime Windows x64 CPU 的 `onnxruntime.dll`，供可选本地语义模型使用。2026-07-19 已将当前安装器静默安装到专用临时目录，确认 EXE（58,017,555 bytes）、`WebView2Loader.dll`（160,320 bytes）和 `onnxruntime.dll`（14,897,976 bytes）三者同级，应用隐藏启动后存活超过 8 秒；测试安装目录已清理。尚未在干净 Windows 环境完成交互式安装、卸载、升级和 MSI 验证。
 
 ## 侧车依赖
 

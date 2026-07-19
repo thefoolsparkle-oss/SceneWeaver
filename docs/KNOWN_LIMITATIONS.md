@@ -16,7 +16,7 @@
 - 可创建自定义选片集合，并支持移动、移除、评分、备注、推荐入/出点和拖拽排序；视频镜头可加入“我的选片”并显示其片段范围。默认和自定义集合均可导出 CSV/JSON/EDL/FCPXML，导出会优先采用推荐入/出点、其次采用片段范围。FCPXML 会规范编码 Windows 文件 URI、使用互不冲突的格式/素材资源 ID，并保留可用的视频源帧率和分辨率；其时间线帧率采用首个有效素材帧率。CMX 3600 EDL 仍固定为 30fps 非丢帧，且两种格式均未处理轨道、转场或速度变化，也尚未在剪辑软件内完成导入验证。
 - Entity 支持名称/别名在自然语言请求中的本地匹配及多张正/负本地参考图；正样本可按颜色或（已安装并重建时）CLIP Provider 检索相似素材，负样本以保守权重参与排序惩罚，误加参考图可按实体归属安全移除。结果目前是去重合并而非跨 Provider 校准的统一置信度；实体置信度、通用中文语义效果评估和完整 ACG Creator Pack 仍未完成。
 - ACG Creator Pack 的用户确认标签可参与组合搜索，但当前不会自动判断游戏 UI、战斗状态、表情或视角；这些标签必须由用户添加或等待后续视觉模型提供。
-- 当前 release EXE 已构建并实际启动验证。NSIS 打包在 GNU 环境需显式携带 `WebView2Loader.dll`；当前安装器已完成隔离目录静默安装与 8 秒启动 smoke，并确认 ONNX Runtime 同级分发。尚未在干净 Windows 环境完成交互式安装、卸载、升级和 MSI 验证。
+- 当前 release EXE 已构建并实际启动验证。NSIS 打包会由 `build.rs` 从锁定的 Cargo WebView2 依赖暂存并显式携带 `WebView2Loader.dll`；当前安装器已完成隔离目录静默安装与 8 秒启动 smoke，并确认 ONNX Runtime 同级分发。尚未在干净 Windows 环境完成交互式安装、卸载、升级和 MSI 验证。
 
 ## 开发环境限制
 
@@ -24,8 +24,8 @@
 - 当前 GNU/Tauri 测试二进制会以 `STATUS_ENTRYPOINT_NOT_FOUND` 启动失败；源码可编译，但 Rust 单元测试尚无法在此环境执行。`core_smoke` 可作为独立二进制实际运行。
 - 使用 GNU 工具链时，需要将 `C:\msys64\mingw64\bin` 加入启动 Cargo 的当前 shell `PATH`，以提供 `gcc` 与 `windres`。
 - Windows release EXE 与当前代码生成的 NSIS 安装包均已验证；MSI、干净环境的交互式安装、卸载和升级仍待验证。
-- 已配置 GitHub Actions Windows 质量门禁，但首次远端执行结果尚待 GitHub Actions 回传；它默认不下载语义模型，也不安装 FFmpeg，因此不会替代本地的模型、视频派生或安装器 smoke。
-- 标准库超时等待会让扫描流程在 30 秒后继续，但当前开发版无法强制终止已经卡住的 FFmpeg/ffprobe 子进程；Windows sidecar supervisor 将处理该限制。
+- 已配置 GitHub Actions Windows 质量门禁。首次远端运行暴露并推动修复了干净工作目录的 `WebView2Loader.dll` 资源缺陷；当前修复的远端复验尚待回传。它默认不下载语义模型，也不安装 FFmpeg，因此不会替代本地的模型、视频派生或安装器 smoke。
+- 镜头检测和关键帧/短预览派生在 90 秒超时后会终止并回收 FFmpeg 子进程；ffprobe 的外部进程超时策略仍待统一到同一监督机制，任务暂停也仍会等待正在执行的单个外部媒体步骤完成或超时。
 
 ## 待验证项
 

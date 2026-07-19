@@ -1,7 +1,7 @@
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::{Command, Output, Stdio};
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::Utc;
 
@@ -21,6 +21,49 @@ pub fn detect_shots(asset_id: &str, path: &Path, duration_ms: i64) -> AppResult<
 }
 
 fn run_scene_detection(ffmpeg: &str, path: &Path) -> AppResult<Vec<i64>> {
+    let filter = format!("select='gt(scene,{SCENE_THRESHOLD})',showinfo");
+    let mut command = Command::new(ffmpeg);
+    command
+        .args(["-hide_banner", "-i"])
+        .arg(path)
+        .args(["-an", "-vf", &filter, "-f", "null", "-"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    let output = run_command_with_timeout(
+        &mut command,
+        Duration::from_secs(90),
+        "镜头检测超时（90 秒）；已终止 FFmpeg 子进程",
+    )?;
+    if !output.status.success() {
+        return Err(AppError::Other("FFmpeg 镜头检测失败".to_string()));
+    }
+    Ok(parse_scene_timestamps(&String::from_utf8_lossy(
+        &output.stderr,
+    )))
+}
+
+fn run_command_with_timeout(
+    command: &mut Command,
+    timeout: Duration,
+    timeout_message: &str,
+) -> AppResult<Output> {
+    let mut child = command.spawn()?;
+    let deadline = Instant::now() + timeout;
+    loop {
+        if child.try_wait()?.is_some() {
+            return child.wait_with_output().map_err(AppError::from);
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(AppError::Other(timeout_message.to_string()));
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+#[allow(dead_code)]
+fn run_scene_detection_legacy(ffmpeg: &str, path: &Path) -> AppResult<Vec<i64>> {
     let executable = ffmpeg.to_string();
     let source = path.to_path_buf();
     let (sender, receiver) = mpsc::sync_channel(1);

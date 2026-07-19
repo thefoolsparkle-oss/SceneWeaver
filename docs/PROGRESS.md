@@ -7,7 +7,7 @@
 
 阶段 1：本地素材库与增量扫描（纵向闭环实现中；质量门禁已开始建立）
 
-阶段 2：已实现扫描时自动执行的 FFmpeg 场景边界切分、关键帧、短预览、基础黑帧/模糊检测与片段持久化；片段可展示质量指标、按需播放短预览并加入 Selects。FFmpeg 缺失、镜头检测失败或单个派生文件失败均不会中断素材入库，视频仍可搜索并可稍后手动重试切分。2026-07-19 已用本机 FFmpeg 8.1.2 合成红蓝切换 MP4 实测自动扫描路径，验证片段、关键帧、短预览、黑帧/模糊/质量指标均写入 SQLite 与缓存。
+阶段 2：已实现扫描时自动执行的 FFmpeg 场景边界切分、关键帧、短预览、基础黑帧/模糊检测与片段持久化；片段可展示质量指标、按需播放短预览并加入 Selects。FFmpeg 缺失、镜头检测失败或单个派生文件失败均不会中断素材入库，视频仍可搜索并可稍后手动重试切分。镜头检测与派生各自的 90 秒超时会终止并回收 FFmpeg 子进程，避免遗留后台进程。2026-07-19 已用本机 FFmpeg 8.1.2 合成红蓝切换 MP4 实测自动扫描路径，验证片段、关键帧、短预览、黑帧/模糊/质量指标均写入 SQLite 与缓存。
 
 阶段 3：已实现本地持久化图片视觉特征与相似图片召回，并接入可选的本地 CLIP ViT-B/32 图文 Provider。设置页只有在用户点击后才下载模型并允许重建语义索引；运行库随安装器携带，模型缺失、运行库缺失或推理失败均降级为关键词/颜色检索。CLIP 模型的中文通用语义质量尚未验证，不将其宣称为中文模型。
 
@@ -146,7 +146,7 @@ ACG 查询预设已接入搜索页（角色近景、雨夜侧脸、战斗无 UI/
 - 前端：`npm.cmd run lint` 通过；`npm.cmd test` 通过（8 tests）；`npm.cmd run build` 通过。
 - Rust：新增路径、指纹、帧率、任务控制、导出、选片标注、视频派生参数单元测试；本轮在补齐 MSYS2 MinGW-w64 的 `windres` 与 `gcc` 后，`cargo test --no-run` 已成功编译；测试二进制运行仍受 GNU/Tauri Windows `STATUS_ENTRYPOINT_NOT_FOUND` 阻塞。
 - 集成测试、E2E 测试尚未完成。
-- 已新增 GitHub Actions Windows 质量门禁：在 `main` 推送、PR 和手动触发时执行前端 lint/test/build、Rust 格式/测试编译和不下载模型的 `core_smoke`；首次远端运行结果待 GitHub Actions 回传。
+- 已新增 GitHub Actions Windows 质量门禁：在 `main` 推送、PR 和手动触发时执行前端 lint/test/build、Rust 格式/测试编译和不下载模型的 `core_smoke`。首次 MSVC 远端运行已实际发现干净工作目录缺少 `target/release/WebView2Loader.dll` 的构建资源缺陷；现由 `build.rs` 从锁定的 `webview2-com-sys` 依赖暂存 DLL，后续远端复验将作为最终结果。
 
 ## 构建结果
 
