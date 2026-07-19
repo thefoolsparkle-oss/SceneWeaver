@@ -236,7 +236,7 @@ pub async fn search_assets(
         .db
         .record_search(&request, assets.len(), started.elapsed().as_millis() as i64)?;
     attach_thumbnail_data(&state, &mut assets);
-    Ok(assets
+    let mut results = assets
         .into_iter()
         .map(|asset| {
             let visual_reason = if semantic_ids.contains(&asset.id) {
@@ -258,7 +258,56 @@ pub async fn search_assets(
             }
             result
         })
-        .collect())
+        .collect::<Vec<_>>();
+    for result in &mut results {
+        let acg_tags = state.db.asset_acg_tags(&result.asset.id)?;
+        apply_acg_tag_explanations(result, &request, &acg_tags);
+    }
+    // Keyword, CLIP and entity candidates are retrieved through separate
+    // paths. Rank only after they have been merged so a later semantic or
+    // entity candidate cannot be displayed below unrelated SQL candidates.
+    results.sort_by(|left, right| {
+        right
+            .score
+            .total_cmp(&left.score)
+            .then_with(|| right.asset.modified_at.cmp(&left.asset.modified_at))
+            .then_with(|| left.asset.id.cmp(&right.asset.id))
+    });
+    Ok(results)
+}
+
+fn apply_acg_tag_explanations(
+    result: &mut crate::models::SearchResult,
+    request: &crate::models::SearchRequest,
+    acg_tags: &[String],
+) {
+    let searchable =
+        format!("{} {}", result.asset.file_name, result.asset.file_path).to_lowercase();
+    for term in &request.must {
+        if !searchable.contains(&term.to_lowercase()) && tag_matches(acg_tags, term) {
+            result
+                .match_reasons
+                .push(format!("满足必须条件：{term}（ACG 标签）"));
+            result.score += 2.0;
+        }
+    }
+    for term in &request.should {
+        if !searchable.contains(&term.to_lowercase()) && tag_matches(acg_tags, term) {
+            result.unmet_should.retain(|unmet| unmet != term);
+            result
+                .match_reasons
+                .push(format!("命中偏好条件：{term}（ACG 标签）"));
+            result.score += 1.0;
+        }
+    }
+}
+
+fn tag_matches(acg_tags: &[String], term: &str) -> bool {
+    let normalized = term.trim().to_lowercase();
+    !normalized.is_empty()
+        && acg_tags
+            .iter()
+            .any(|tag| tag.to_lowercase().contains(&normalized))
 }
 
 fn explain_search_result(
@@ -524,11 +573,20 @@ fn base64_encode(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::base64_encode;
+    use super::{base64_encode, tag_matches};
 
     #[test]
     fn encodes_thumbnail_bytes_as_base64() {
         assert_eq!(base64_encode(b"Man"), "TWFu");
         assert_eq!(base64_encode(b"M"), "TQ==");
+    }
+
+    #[test]
+    fn matches_acg_tags_case_insensitively() {
+        let tags = vec!["Game UI".to_string(), "Pink Hair".to_string()];
+        assert!(tag_matches(&tags, "pink hair"));
+        assert!(tag_matches(&tags, "UI"));
+        assert!(!tag_matches(&tags, "water"));
+        assert!(!tag_matches(&tags, "   "));
     }
 }
