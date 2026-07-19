@@ -273,7 +273,82 @@ pub async fn search_assets(
             .then_with(|| right.asset.modified_at.cmp(&left.asset.modified_at))
             .then_with(|| left.asset.id.cmp(&right.asset.id))
     });
-    Ok(results)
+    Ok(diversify_equal_score_results(results))
+}
+
+/// Keeps ranking quality intact while avoiding a same-score block from one
+/// library. Scores remain strict priority tiers; only candidates that are
+/// otherwise tied are interleaved in a stable round-robin order.
+fn diversify_equal_score_results(
+    sorted: Vec<crate::models::SearchResult>,
+) -> Vec<crate::models::SearchResult> {
+    let mut diversified = Vec::with_capacity(sorted.len());
+    let mut offset = 0;
+    while offset < sorted.len() {
+        let score = sorted[offset].score;
+        let mut end = offset + 1;
+        while end < sorted.len() && sorted[end].score.total_cmp(&score).is_eq() {
+            end += 1;
+        }
+        let mut group = sorted[offset..end]
+            .iter()
+            .cloned()
+            .map(Some)
+            .collect::<Vec<_>>();
+        let libraries = group
+            .iter()
+            .map(|result| {
+                result
+                    .as_ref()
+                    .expect("group entry must exist")
+                    .asset
+                    .library_id
+                    .clone()
+            })
+            .collect::<Vec<_>>();
+        let order = diversity_order(&libraries);
+        let diversified_group = order.len() > 1
+            && libraries
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+                > 1
+            && order != (0..order.len()).collect::<Vec<_>>();
+        for index in order {
+            let mut result = group[index].take().expect("diversity index must be unique");
+            if diversified_group {
+                result
+                    .match_reasons
+                    .push("同分候选按素材库轮换，保留结果多样性".to_string());
+            }
+            diversified.push(result);
+        }
+        offset = end;
+    }
+    diversified
+}
+
+fn diversity_order(library_ids: &[String]) -> Vec<usize> {
+    let mut queues = Vec::<(String, std::collections::VecDeque<usize>)>::new();
+    for (index, library_id) in library_ids.iter().enumerate() {
+        if let Some((_, indices)) = queues.iter_mut().find(|(id, _)| id == library_id) {
+            indices.push_back(index);
+        } else {
+            queues.push((
+                library_id.clone(),
+                std::collections::VecDeque::from([index]),
+            ));
+        }
+    }
+    let mut order = Vec::with_capacity(library_ids.len());
+    while order.len() < library_ids.len() {
+        for (_, indices) in &mut queues {
+            if let Some(index) = indices.pop_front() {
+                order.push(index);
+            }
+        }
+    }
+    order
 }
 
 fn apply_acg_tag_explanations(
@@ -573,7 +648,7 @@ fn base64_encode(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{base64_encode, tag_matches};
+    use super::{base64_encode, diversity_order, tag_matches};
 
     #[test]
     fn encodes_thumbnail_bytes_as_base64() {
@@ -588,5 +663,14 @@ mod tests {
         assert!(tag_matches(&tags, "UI"));
         assert!(!tag_matches(&tags, "water"));
         assert!(!tag_matches(&tags, "   "));
+    }
+
+    #[test]
+    fn interleaves_same_score_candidates_by_library_without_dropping_any() {
+        let libraries = vec!["library-a", "library-a", "library-b", "library-c"]
+            .into_iter()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        assert_eq!(diversity_order(&libraries), vec![0, 2, 3, 1]);
     }
 }
