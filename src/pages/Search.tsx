@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { open } from '@tauri-apps/plugin-dialog';
 import { findAssetsForEntity, findSimilarAssets, findSimilarByReferenceImage, listEntities, recentSearches, searchAssets } from '@/api';
 import { MediaGrid } from '@/components/MediaGrid';
+import { SegmentPanel } from '@/components/SegmentPanel';
 import { parseQueryConditions, replaceQueryCondition } from '@/lib/queryConditions';
 import { ACG_CREATOR_PRESETS, applyAcgCreatorPack } from '@/lib/acgCreatorPack';
 import { acgCreatorPackEnabled } from '@/api';
@@ -20,6 +21,7 @@ export default function Search() {
   const [mediaTypes, setMediaTypes] = useState<MediaType[]>([]);
   const [minQuality, setMinQuality] = useState<number | null>(null);
   const [entityId, setEntityId] = useState('');
+  const [segmentAssetId, setSegmentAssetId] = useState<string | null>(null);
   const history = useQuery({ queryKey: ['recentSearches'], queryFn: recentSearches });
   const entities = useQuery({ queryKey: ['entities'], queryFn: listEntities });
   const acgPack = useQuery({ queryKey: ['acgCreatorPack'], queryFn: acgCreatorPackEnabled });
@@ -27,7 +29,7 @@ export default function Search() {
   const runQuery = (rawQuery: string) => {
     if (rawQuery.trim()) {
       const parsed = parseQueryConditions(rawQuery.trim());
-      similar.reset(); entityMatches.reset(); setSimilarReference(null);
+      similar.reset(); entityMatches.reset(); setSimilarReference(null); setSegmentAssetId(null);
       const request = { ...(acgPack.data ? applyAcgCreatorPack(parsed) : parsed), media_types: mediaTypes, min_quality_score: minQuality };
       setConditions(request);
       search.mutate(request);
@@ -36,11 +38,11 @@ export default function Search() {
   const submit = (event: React.FormEvent) => { event.preventDefault(); runQuery(query); };
   const chooseReferenceImage = async () => {
     const path = await open({ multiple: false, filters: [{ name: '图片', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'] }] });
-    if (typeof path === 'string') { setSimilarReference(path); search.reset(); similar.reset(); entityMatches.reset(); referenceImage.mutate(path); }
+    if (typeof path === 'string') { setSimilarReference(path); search.reset(); similar.reset(); entityMatches.reset(); setSegmentAssetId(null); referenceImage.mutate(path); }
   };
   const searchEntity = () => {
     if (!entityId) return;
-    search.reset(); similar.reset(); referenceImage.reset(); setSimilarReference(null);
+    search.reset(); similar.reset(); referenceImage.reset(); setSimilarReference(null); setSegmentAssetId(null);
     entityMatches.mutate(entityId);
   };
   const keywordAssets = search.data?.map((result) => result.asset) ?? [];
@@ -95,7 +97,8 @@ export default function Search() {
       )}
       {(search.isError || similar.isError || referenceImage.isError || entityMatches.isError) && <p className="mb-4 text-sm text-red-600">搜索失败：{(entityMatches.error ?? referenceImage.error ?? similar.error ?? search.error)?.message}</p>}
       {(search.data || similar.data || referenceImage.data || entityMatches.data) && <p className="mb-4 text-sm text-neutral-500">{entityMatches.data ? '实体匹配结果' : referenceImage.data ? '参考图相似结果' : similarReference ? '视觉相似结果' : '关键词结果'}：{activeAssets.length} 项</p>}
-      {(search.data || similar.data || referenceImage.data || entityMatches.data) && <MediaGrid assets={activeAssets} explanations={referenceImage.data || similar.data || entityMatches.data ? undefined : keywordExplanations} onFindSimilar={(assetId) => { setSimilarReference(assetId); referenceImage.reset(); entityMatches.reset(); similar.mutate(assetId); }} />}
+      {(search.data || similar.data || referenceImage.data || entityMatches.data) && <MediaGrid assets={activeAssets} explanations={referenceImage.data || similar.data || entityMatches.data ? undefined : keywordExplanations} onViewSegments={setSegmentAssetId} onFindSimilar={(assetId) => { setSimilarReference(assetId); referenceImage.reset(); entityMatches.reset(); setSegmentAssetId(null); similar.mutate(assetId); }} />}
+      {segmentAssetId && <SegmentPanel assetId={segmentAssetId} onClose={() => setSegmentAssetId(null)} />}
     </div>
   );
 }
