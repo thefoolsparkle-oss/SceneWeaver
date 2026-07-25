@@ -5,7 +5,7 @@ import {
   createSelectCollection, exportDefaultSelectsCsv, exportDefaultSelectsEdl,
   exportDefaultSelectsFcpxml, exportDefaultSelectsJson, exportSelectCollectionCsv,
   exportSelectCollectionContactSheet, exportSelectCollectionContactSheetHtml, exportSelectCollectionEdl, exportSelectCollectionFcpxml, exportSelectCollectionJson,
-  addSelectItemTag, addSelectItemTagBatch, listSelectCollections, listSelectItems, moveSelectItem, removeSelectItem, removeSelectItemTag,
+  addSelectItemTag, addSelectItemTagBatch, listSelectCollections, listSelectItems, moveSelectItem, openAsset, removeSelectItem, removeSelectItemTag,
   reorderSelectItem, updateSelectItem,
 } from '@/api';
 import { formatDuration, formatTimecode } from '@/lib/mediaFormat';
@@ -53,6 +53,13 @@ export default function Selects() {
   const batchAddTag = useMutation({
     mutationFn: ({ itemIds, value }: { itemIds: string[]; value: string }) => addSelectItemTagBatch(itemIds, value),
     onSuccess: () => { setBatchTag(''); setSelectedItemIds(new Set()); return invalidateItems(); },
+  });
+  const batchOpen = useMutation({
+    mutationFn: async (itemIds: string[]) => {
+      const assetIds = [...new Set(items.data?.filter((item) => itemIds.includes(item.id)).map((item) => item.asset_id) ?? [])];
+      await Promise.all(assetIds.map((assetId) => openAsset(assetId)));
+      return assetIds.length;
+    },
   });
 
   const exportFile = async (format: ExportFormat) => {
@@ -115,7 +122,7 @@ export default function Selects() {
         {items.isError && <p className="text-red-600">加载选片失败。</p>}
         {items.data?.length === 0 && <p className="rounded-xl border border-dashed p-8 text-center text-neutral-500">此集合暂无选片。</p>}
         {!!items.data?.length && <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border p-3"><input value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} placeholder="按标签筛选" aria-label="按标签筛选" className="min-w-40 flex-1 rounded border px-2 py-1 text-sm" /><button type="button" onClick={() => setSelectedItemIds(allVisibleSelected ? new Set() : new Set(visibleItems.map((item) => item.id)))} className="rounded border px-2 py-1 text-xs">{allVisibleSelected ? '取消全选' : `全选筛选结果 (${visibleItems.length})`}</button></div>}
-        {selectedItemIds.size > 0 && <form onSubmit={(event) => { event.preventDefault(); if (batchTag.trim()) batchAddTag.mutate({ itemIds: [...selectedItemIds], value: batchTag }); }} className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm text-brand-800"><span>已选择 {selectedItemIds.size} 项</span><input value={batchTag} onChange={(event) => setBatchTag(event.target.value)} maxLength={80} placeholder="批量添加标签" aria-label="批量添加标签" className="rounded border border-brand-200 bg-white px-2 py-1 text-sm text-neutral-800" /><button disabled={batchAddTag.isPending || !batchTag.trim()} className="rounded bg-brand-600 px-3 py-1 text-white disabled:opacity-50">{batchAddTag.isPending ? '添加中…' : '添加标签'}</button><button type="button" onClick={() => setSelectedItemIds(new Set())} className="rounded border px-3 py-1">取消选择</button>{batchAddTag.isError && <span className="text-red-600">{batchAddTag.error.message}</span>}</form>}
+        {selectedItemIds.size > 0 && <form onSubmit={(event) => { event.preventDefault(); if (batchTag.trim()) batchAddTag.mutate({ itemIds: [...selectedItemIds], value: batchTag }); }} className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm text-brand-800"><span>已选择 {selectedItemIds.size} 项</span><input value={batchTag} onChange={(event) => setBatchTag(event.target.value)} maxLength={80} placeholder="批量添加标签" aria-label="批量添加标签" className="rounded border border-brand-200 bg-white px-2 py-1 text-sm text-neutral-800" /><button disabled={batchAddTag.isPending || !batchTag.trim()} className="rounded bg-brand-600 px-3 py-1 text-white disabled:opacity-50">{batchAddTag.isPending ? '添加中…' : '添加标签'}</button><button type="button" onClick={() => batchOpen.mutate([...selectedItemIds])} disabled={batchOpen.isPending} className="rounded border px-3 py-1 disabled:opacity-50">{batchOpen.isPending ? '打开中…' : '批量打开源素材'}</button><button type="button" onClick={() => setSelectedItemIds(new Set())} className="rounded border px-3 py-1">取消选择</button>{(batchAddTag.isError || batchOpen.isError) && <span className="text-red-600">{(batchAddTag.error ?? batchOpen.error)?.message}</span>}</form>}
         {items.data?.length !== 0 && visibleItems.length === 0 && <p className="rounded-xl border border-dashed p-6 text-center text-neutral-500">没有匹配该标签的选片。</p>}
         <div className="space-y-3">{visibleItems.map((item, index) => <SelectItemCard key={item.id} item={item} index={items.data?.findIndex((candidate) => candidate.id === item.id) ?? index} total={items.data?.length ?? 0} collections={collections.data ?? []} currentCollectionId={collectionId} selected={selectedItemIds.has(item.id)} isDragging={draggedItemId === item.id} onToggleSelection={() => setSelectedItemIds((current) => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })} onDragStart={() => setDraggedItemId(item.id)} onDragEnd={() => setDraggedItemId(null)} onDrop={() => handleDrop(item.id)} onSave={(request) => updateSelectItem(item.id, request).then(invalidateItems)} onAddTag={(value) => addSelectItemTag(item.id, value).then(invalidateItems)} onRemoveTag={(value) => removeSelectItemTag(item.id, value).then(invalidateItems)} onRemove={() => remove.mutate(item.id)} onMove={(targetId) => move.mutate({ itemId: item.id, targetId })} onReorder={(position) => reorder.mutate({ itemId: item.id, position })} />)}</div>
       </> : <p className="rounded-xl border border-dashed p-8 text-center text-neutral-500">创建集合，或从媒体卡片加入第一条选片。</p>}</section>
