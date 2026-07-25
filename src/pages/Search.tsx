@@ -116,7 +116,7 @@ export default function Search() {
       <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-neutral-500"><span>素材类型：</span>{([{ value: 'image', label: '图片' }, { value: 'video', label: '视频' }, { value: 'audio', label: '音频' }] as const).map(({ value, label }) => <button type="button" key={value} onClick={() => toggleMediaType(value)} className={`rounded-full border px-2 py-1 ${mediaTypes.includes(value) ? 'border-brand-500 bg-brand-50 text-brand-700' : ''}`}>{label}</button>)}</div>
       <label className="mb-4 flex items-center gap-2 text-xs text-neutral-500">最低视频片段质量<select value={minQuality ?? ''} onChange={(event) => setMinQuality(event.target.value === '' ? null : Number(event.target.value))} className="rounded border px-2 py-1"><option value="">不限</option><option value="0.5">50%</option><option value="0.7">70%</option><option value="0.85">85%</option></select></label>
       <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
-        <span>日期范围（当前按本地文件修改时间）</span>
+        <span>日期范围（拍摄/创建时间优先，缺失时用本地文件修改时间）</span>
         <input aria-label="开始日期" type="date" value={dateStart} onChange={(event) => setDateStart(event.target.value)} className="rounded border px-2 py-1 dark:border-neutral-700 dark:bg-neutral-900" />
         <span>至</span>
         <input aria-label="结束日期" type="date" value={dateEnd} onChange={(event) => setDateEnd(event.target.value)} className="rounded border px-2 py-1 dark:border-neutral-700 dark:bg-neutral-900" />
