@@ -114,4 +114,5 @@ pub struct MediaProbeInfo {
     pub height: Option<i32>,
     pub fps: Option<f64>,
     pub codec: Option<String>,
+    pub capture_time: Option<i64>,
 }

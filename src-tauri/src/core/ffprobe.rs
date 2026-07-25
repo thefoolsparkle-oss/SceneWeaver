@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
@@ -18,6 +19,8 @@ struct FfprobeOutput {
 struct FfprobeFormat {
     #[serde(rename = "duration")]
     duration: Option<String>,
+    #[serde(default)]
+    tags: HashMap<String, String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -32,6 +35,8 @@ struct FfprobeStream {
     r_frame_rate: Option<String>,
     #[serde(rename = "avg_frame_rate")]
     avg_frame_rate: Option<String>,
+    #[serde(default)]
+    tags: HashMap<String, String>,
 }
 
 pub fn probe_media(path: &Path) -> AppResult<MediaProbeInfo> {
@@ -75,6 +80,7 @@ pub fn probe_media(path: &Path) -> AppResult<MediaProbeInfo> {
         .and_then(|f| f.duration.as_ref())
         .and_then(|d| d.parse::<f64>().ok())
         .map(|s| (s * 1000.0) as i64);
+    let capture_time = capture_time_from_tags(&parsed.format, &parsed.streams);
 
     let video_stream = parsed
         .streams
@@ -99,7 +105,39 @@ pub fn probe_media(path: &Path) -> AppResult<MediaProbeInfo> {
         height,
         fps,
         codec,
+        capture_time,
     })
+}
+
+/// FFmpeg's interoperable metadata key is the RFC 3339 creation_time. Some
+/// cameras instead expose a vendor QuickTime key; all other ambiguous date
+/// tags are deliberately ignored rather than guessing a timezone.
+fn capture_time_from_tags(
+    format: &Option<FfprobeFormat>,
+    streams: &[FfprobeStream],
+) -> Option<i64> {
+    format
+        .as_ref()
+        .map(|entry| &entry.tags)
+        .into_iter()
+        .chain(streams.iter().map(|stream| &stream.tags))
+        .find_map(|tags| {
+            ["creation_time", "com.apple.quicktime.creationdate"]
+                .into_iter()
+                .find_map(|key| tag_value(tags, key).and_then(parse_capture_time))
+        })
+}
+
+fn tag_value<'a>(tags: &'a HashMap<String, String>, key: &str) -> Option<&'a str> {
+    tags.iter()
+        .find(|(candidate, _)| candidate.eq_ignore_ascii_case(key))
+        .map(|(_, value)| value.as_str())
+}
+
+fn parse_capture_time(value: &str) -> Option<i64> {
+    chrono::DateTime::parse_from_rfc3339(value.trim())
+        .ok()
+        .map(|datetime| datetime.timestamp_millis())
 }
 
 fn parse_frame_rate(rate: &String) -> Option<f64> {
@@ -141,7 +179,7 @@ fn find_ffprobe() -> AppResult<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_frame_rate;
+    use super::{parse_capture_time, parse_frame_rate};
 
     #[test]
     fn parses_fractional_frame_rates() {
@@ -150,5 +188,14 @@ mod tests {
             Some(30000.0 / 1001.0)
         );
         assert_eq!(parse_frame_rate(&"0/0".to_string()), None);
+    }
+
+    #[test]
+    fn parses_rfc3339_capture_time_without_guessing_timezone() {
+        assert_eq!(
+            parse_capture_time("2024-05-06T07:08:09.123Z"),
+            Some(1_714_979_289_123)
+        );
+        assert_eq!(parse_capture_time("2024-05-06 07:08:09"), None);
     }
 }

@@ -255,6 +255,7 @@ impl Scanner {
                 asset.height = info.height;
                 asset.fps = info.fps;
                 asset.codec = info.codec;
+                asset.capture_time = info.capture_time;
             }
         } else if media_type == MediaType::Image {
             if let Ok((w, h)) = image_dimensions(path) {

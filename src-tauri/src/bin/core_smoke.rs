@@ -792,6 +792,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "[0:v]drawbox=x=2:y=32:w=8:h=6:color=white:t=fill,drawbox=x=54:y=32:w=8:h=6:color=white:t=fill[v0];[1:v]drawbox=x=2:y=32:w=8:h=6:color=white:t=fill,drawbox=x=54:y=32:w=8:h=6:color=white:t=fill[v1];[v0][v1]concat=n=2:v=1:a=0",
                 "-c:v",
                 "libx264",
+                "-metadata",
+                "creation_time=2024-05-06T07:08:09.123Z",
             ])
             .arg(&video_path)
             .status()?;
@@ -825,6 +827,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             sceneweaver_lib::models::MediaType::Video
         );
         assert!(video_asset.duration_ms.unwrap_or(0) >= 1_900);
+        assert_eq!(video_asset.capture_time, Some(1_714_979_289_000));
         let mut video_segments = db.list_segments(&video_asset.id)?;
         assert!(!video_segments.is_empty(), "video must create segments");
         assert!(video_segments
