@@ -1,5 +1,10 @@
 # SceneWeaver 实施进度
 
+## 2026-07-25：实体候选反馈闭环
+
+- 实体页将候选标记为“是实体”或“非实体”后，反馈仍只存于本地 SQLite，同时自动重新运行当前实体检索，使正样本扩展或负样本抑制立即体现在候选排序中。
+- 这不是身份置信度声明；它只让用户确认的本地样本真正参与下一次可见结果。
+
 ## 2026-07-25：图片 EXIF 拍摄时间
 
 - 新增本地 EXIF 读取：DateTimeOriginal、DateTimeDigitized 或 DateTime 只有在拥有对应 OffsetTime 时才会写入 capture_time；带时区的时间会转换为 Unix 毫秒。
