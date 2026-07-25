@@ -2,7 +2,12 @@
 
 ## 视频/音频创建时间
 
-- 合成含 RFC 3339 creation_time 的 MP4 后，FFprobe 读取值必须持久化到 capture_time；缺失时区的日期元数据必须被拒绝，不得按本机时区猜测。图片 EXIF 样本仍待后续补充。
+- 合成含 RFC 3339 creation_time 的 MP4 后，FFprobe 读取值必须持久化到 capture_time；缺失时区的日期元数据必须被拒绝，不得按本机时区猜测。
+
+## 图片 EXIF 拍摄时间
+
+- DateTimeOriginal、DateTimeDigitized 与 DateTime 必须各自搭配正确的 OffsetTime 才能成为 capture_time；没有偏移的传统 EXIF 值必须回退。
+- core_smoke 生成含 DateTimeOriginal 和 OffsetTimeOriginal 的 JPEG APP1 样本，扫描后应从 SQLite 读回换算后的 UTC 毫秒值。
 
 ## 本地日期范围搜索
 

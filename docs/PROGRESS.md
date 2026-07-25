@@ -1,5 +1,11 @@
 # SceneWeaver 实施进度
 
+## 2026-07-25：图片 EXIF 拍摄时间
+
+- 新增本地 EXIF 读取：DateTimeOriginal、DateTimeDigitized 或 DateTime 只有在拥有对应 OffsetTime 时才会写入 capture_time；带时区的时间会转换为 Unix 毫秒。
+- 不带时区的传统 EXIF 时间、损坏元数据及不支持的容器均回退文件修改时间，不按当前机器时区猜测，避免跨时区照片被错误归档。
+- core_smoke 以应用内生成的 JPEG APP1 EXIF 样本实际扫描、生成缩略图并回读 SQLite 的 capture_time；没有读取、上传或保留用户媒体。
+
 ## 2026-07-25：视频/音频创建时间提取
 
 - FFprobe 现读取容器或视频流中的标准 RFC 3339 creation_time，以及兼容的 QuickTime 创建时间，并以 Unix 毫秒持久化到现有 capture_time。

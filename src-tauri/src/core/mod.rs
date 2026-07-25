@@ -2,6 +2,7 @@ pub mod app_state;
 pub mod cache;
 pub mod db;
 pub mod error;
+pub mod exif;
 pub mod export;
 pub mod ffprobe;
 pub mod fingerprint;

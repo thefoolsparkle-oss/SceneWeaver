@@ -773,6 +773,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         sceneweaver_lib::models::AssetStatus::Offline
     );
 
+    let exif_root = root.join("EXIF 照片验证");
+    std::fs::create_dir_all(&exif_root)?;
+    let exif_photo_path = exif_root.join("带时区照片.jpg");
+    write_timezone_qualified_exif_jpeg(&exif_photo_path)?;
+    let exif_library = Library {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: "EXIF smoke library".to_string(),
+        root_path: exif_root.to_string_lossy().to_string(),
+        status: LibraryStatus::Idle,
+        index_profile: IndexProfile::Quick,
+        include_patterns: vec!["**/*".to_string()],
+        exclude_patterns: vec![],
+        watch_enabled: false,
+        last_scan_at: None,
+        created_at: now,
+        updated_at: now,
+    };
+    db.create_library(&exif_library)?;
+    assert_eq!(
+        scanner
+            .scan_library(&exif_library, &control, &progress)?
+            .changed,
+        1
+    );
+    assert_eq!(
+        db.list_assets(&exif_library.id)?[0].capture_time,
+        Some(1_714_979_289_000)
+    );
+
     if which::which("ffmpeg").is_ok() && which::which("ffprobe").is_ok() {
         let video_root = root.join("视频 验证");
         std::fs::create_dir_all(&video_root)?;
@@ -959,5 +988,48 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "core smoke passed: Chinese + spaced path, long/corrupt media resilience, thumbnail, multi-provider visual index, bundled semantic runtime, incremental scan, offline detection, selects exports, segment selects and optional FFmpeg video derivatives"
     );
+    Ok(())
+}
+
+fn write_timezone_qualified_exif_jpeg(
+    path: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    image::RgbImage::from_pixel(12, 12, image::Rgb([30, 60, 90])).save(path)?;
+    let jpeg = std::fs::read(path)?;
+    assert!(jpeg.starts_with(&[0xff, 0xd8]));
+
+    let mut tiff = Vec::new();
+    tiff.extend_from_slice(b"II");
+    tiff.extend_from_slice(&42_u16.to_le_bytes());
+    tiff.extend_from_slice(&8_u32.to_le_bytes());
+    tiff.extend_from_slice(&1_u16.to_le_bytes());
+    tiff.extend_from_slice(&0x8769_u16.to_le_bytes());
+    tiff.extend_from_slice(&4_u16.to_le_bytes());
+    tiff.extend_from_slice(&1_u32.to_le_bytes());
+    tiff.extend_from_slice(&26_u32.to_le_bytes());
+    tiff.extend_from_slice(&0_u32.to_le_bytes());
+
+    tiff.extend_from_slice(&2_u16.to_le_bytes());
+    tiff.extend_from_slice(&0x9003_u16.to_le_bytes());
+    tiff.extend_from_slice(&2_u16.to_le_bytes());
+    tiff.extend_from_slice(&20_u32.to_le_bytes());
+    tiff.extend_from_slice(&56_u32.to_le_bytes());
+    tiff.extend_from_slice(&0x9011_u16.to_le_bytes());
+    tiff.extend_from_slice(&2_u16.to_le_bytes());
+    tiff.extend_from_slice(&7_u32.to_le_bytes());
+    tiff.extend_from_slice(&76_u32.to_le_bytes());
+    tiff.extend_from_slice(&0_u32.to_le_bytes());
+    tiff.extend_from_slice(b"2024:05:06 15:08:09\0");
+    tiff.extend_from_slice(b"+08:00\0");
+
+    let mut app1_payload = b"Exif\0\0".to_vec();
+    app1_payload.extend_from_slice(&tiff);
+    let mut output = Vec::with_capacity(jpeg.len() + app1_payload.len() + 4);
+    output.extend_from_slice(&jpeg[..2]);
+    output.extend_from_slice(&[0xff, 0xe1]);
+    output.extend_from_slice(&((app1_payload.len() + 2) as u16).to_be_bytes());
+    output.extend_from_slice(&app1_payload);
+    output.extend_from_slice(&jpeg[2..]);
+    std::fs::write(path, output)?;
     Ok(())
 }

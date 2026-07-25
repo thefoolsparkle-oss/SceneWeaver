@@ -9,6 +9,7 @@ use walkdir::WalkDir;
 use crate::core::cache::CacheManager;
 use crate::core::db::Database;
 use crate::core::error::{AppError, AppResult};
+use crate::core::exif::probe_image_capture_time;
 use crate::core::ffprobe::probe_media;
 use crate::core::fingerprint::{needs_reindex, quick_fingerprint};
 use crate::core::job_queue::{JobControl, ProgressUpdate};
@@ -262,6 +263,7 @@ impl Scanner {
                 asset.width = Some(w);
                 asset.height = Some(h);
             }
+            asset.capture_time = probe_image_capture_time(path);
         }
 
         asset.status = AssetStatus::Indexed;
