@@ -64,6 +64,20 @@ pub async fn add_asset_to_select_collection(
 }
 
 #[tauri::command]
+pub async fn add_assets_to_select_collection(
+    state: State<'_, AppState>,
+    collection_id: String,
+    asset_ids: Vec<String>,
+) -> AppResult<usize> {
+    if asset_ids.is_empty() {
+        return Ok(0);
+    }
+    state
+        .db
+        .add_assets_to_select_collection(&collection_id, &asset_ids)
+}
+
+#[tauri::command]
 pub async fn update_select_item(
     state: State<'_, AppState>,
     item_id: String,

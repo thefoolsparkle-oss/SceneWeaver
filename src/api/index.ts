@@ -119,6 +119,8 @@ export const findAssetsForEntity = (entityId: string): Promise<Asset[]> => invok
 export const listSelectCollections = (): Promise<SelectCollection[]> => invoke('list_select_collections');
 export const createSelectCollection = (request: CreateSelectCollectionRequest): Promise<SelectCollection> => invoke('create_select_collection', { request });
 export const listSelectItems = (collectionId: string): Promise<SelectItem[]> => invoke('list_select_items', { collectionId });
+export const addAssetsToSelectCollection = (collectionId: string, assetIds: string[]): Promise<number> =>
+  invoke('add_assets_to_select_collection', { collectionId, assetIds });
 export const updateSelectItem = (itemId: string, request: UpdateSelectItemRequest): Promise<SelectItem> => invoke('update_select_item', { itemId, request });
 export const removeSelectItem = (itemId: string): Promise<void> => invoke('remove_select_item', { itemId });
 export const moveSelectItem = (itemId: string, collectionId: string): Promise<void> => invoke('move_select_item', { itemId, collectionId });

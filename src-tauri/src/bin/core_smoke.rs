@@ -506,6 +506,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         db.add_assets_to_default_selects(&[primary_asset.id.clone()])?,
         0
     );
+    let batch_collection = SelectCollection {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: "Batch selects".to_string(),
+        description: Some("batch insertion smoke test".to_string()),
+        created_at: now,
+        updated_at: now,
+    };
+    db.create_select_collection(&batch_collection)?;
+    assert_eq!(
+        db.add_assets_to_select_collection(&batch_collection.id, &[primary_asset.id.clone()])?,
+        1
+    );
+    assert_eq!(
+        db.add_assets_to_select_collection(&batch_collection.id, &[primary_asset.id.clone()])?,
+        0
+    );
+    assert_eq!(db.list_select_items(&batch_collection.id)?.len(), 1);
     let selects = db.default_select_assets()?;
     assert_eq!(selects.len(), 1);
     let csv_path = root.join("selects.csv");

@@ -878,8 +878,43 @@ impl Database {
     }
 
     pub fn add_assets_to_default_selects(&self, asset_ids: &[String]) -> AppResult<usize> {
-        let conn = self.open()?;
+        let mut conn = self.open()?;
         let collection_id = Self::default_select_collection_id(&conn)?;
+        let transaction = conn.transaction()?;
+        let added =
+            Self::add_assets_to_select_collection_conn(&transaction, &collection_id, asset_ids)?;
+        transaction.commit()?;
+        Ok(added)
+    }
+
+    pub fn add_assets_to_select_collection(
+        &self,
+        collection_id: &str,
+        asset_ids: &[String],
+    ) -> AppResult<usize> {
+        let mut conn = self.open()?;
+        let collection_exists: Option<i64> = conn
+            .query_row(
+                "SELECT 1 FROM selects_collections WHERE id = ?1",
+                [collection_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if collection_exists.is_none() {
+            return Err(AppError::Other("选片集合不存在或已被删除".to_string()));
+        }
+        let transaction = conn.transaction()?;
+        let added =
+            Self::add_assets_to_select_collection_conn(&transaction, collection_id, asset_ids)?;
+        transaction.commit()?;
+        Ok(added)
+    }
+
+    fn add_assets_to_select_collection_conn(
+        conn: &Connection,
+        collection_id: &str,
+        asset_ids: &[String],
+    ) -> AppResult<usize> {
         let mut added = 0;
         for asset_id in asset_ids {
             let exists: Option<i64> = conn.query_row(

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { open } from '@tauri-apps/plugin-dialog';
-import { addAssetsToDefaultSelects, findAssetsForEntity, findSimilarAssets, findSimilarByReferenceImage, listEntities, recentSearches, searchAssets } from '@/api';
+import { addAssetsToDefaultSelects, addAssetsToSelectCollection, findAssetsForEntity, findSimilarAssets, findSimilarByReferenceImage, listEntities, listSelectCollections, recentSearches, searchAssets } from '@/api';
 import { MediaGrid } from '@/components/MediaGrid';
 import { SegmentPanel } from '@/components/SegmentPanel';
 import { parseQueryConditions, replaceQueryCondition } from '@/lib/queryConditions';
@@ -23,9 +23,16 @@ export default function Search() {
   const [entityId, setEntityId] = useState('');
   const [segmentFocus, setSegmentFocus] = useState<{ assetId: string; matchingSegmentIds?: string[] } | null>(null);
   const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
-  const batchSelects = useMutation({ mutationFn: addAssetsToDefaultSelects, onSuccess: () => setSelectedAssetIds(new Set()) });
+  const [batchCollectionId, setBatchCollectionId] = useState('default');
+  const batchSelects = useMutation({
+    mutationFn: ({ assetIds, collectionId }: { assetIds: string[]; collectionId: string }) => collectionId === 'default'
+      ? addAssetsToDefaultSelects(assetIds)
+      : addAssetsToSelectCollection(collectionId, assetIds),
+    onSuccess: () => setSelectedAssetIds(new Set()),
+  });
   const history = useQuery({ queryKey: ['recentSearches'], queryFn: recentSearches });
   const entities = useQuery({ queryKey: ['entities'], queryFn: listEntities });
+  const selectCollections = useQuery({ queryKey: ['selectCollections'], queryFn: listSelectCollections });
   const acgPack = useQuery({ queryKey: ['acgCreatorPack'], queryFn: acgCreatorPackEnabled });
 
   const runQuery = (rawQuery: string) => {
@@ -99,8 +106,8 @@ export default function Search() {
         </div>
       )}
       {(search.isError || similar.isError || referenceImage.isError || entityMatches.isError) && <p className="mb-4 text-sm text-red-600">搜索失败：{(entityMatches.error ?? referenceImage.error ?? similar.error ?? search.error)?.message}</p>}
-      {(search.data || similar.data || referenceImage.data || entityMatches.data) && <p className="mb-4 text-sm text-neutral-500">{entityMatches.data ? '实体匹配结果' : referenceImage.data ? '参考图相似结果' : similarReference ? '视觉相似结果' : '关键词结果'}：{activeAssets.length} 项</p>}
-      {selectedAssetIds.size > 0 && <div className="mb-3 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm text-brand-800"><span>已选择 {selectedAssetIds.size} 项</span><button onClick={() => batchSelects.mutate([...selectedAssetIds])} disabled={batchSelects.isPending} className="rounded bg-brand-600 px-3 py-1 text-white disabled:opacity-50">{batchSelects.isPending ? '加入中…' : '批量加入选片'}</button><button onClick={() => setSelectedAssetIds(new Set())} className="rounded border px-3 py-1">取消选择</button></div>}
+      {(search.data || similar.data || referenceImage.data || entityMatches.data) && <div className="mb-4 flex items-center gap-3 text-sm text-neutral-500"><span>{entityMatches.data ? '实体匹配结果' : referenceImage.data ? '参考图相似结果' : similarReference ? '视觉相似结果' : '关键词结果'}：{activeAssets.length} 项</span>{activeAssets.length > 0 && <button type="button" onClick={() => setSelectedAssetIds(new Set(activeAssets.map((asset) => asset.id)))} className="rounded border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800">全选当前结果</button>}</div>}
+      {selectedAssetIds.size > 0 && <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm text-brand-800"><span>已选择 {selectedAssetIds.size} 项</span><label className="flex items-center gap-1">加入<select value={batchCollectionId} onChange={(event) => setBatchCollectionId(event.target.value)} className="rounded border border-brand-200 bg-white px-2 py-1 text-sm text-neutral-800"><option value="default">我的选片（默认）</option>{selectCollections.data?.filter((collection) => collection.name !== '我的选片').map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}</select></label><button onClick={() => batchSelects.mutate({ assetIds: [...selectedAssetIds], collectionId: batchCollectionId })} disabled={batchSelects.isPending} className="rounded bg-brand-600 px-3 py-1 text-white disabled:opacity-50">{batchSelects.isPending ? '加入中…' : '批量加入选片'}</button><button onClick={() => setSelectedAssetIds(new Set())} className="rounded border px-3 py-1">取消选择</button></div>}
       {batchSelects.isError && <p className="mb-3 text-sm text-red-600">批量加入选片失败：{batchSelects.error.message}</p>}
       {(search.data || similar.data || referenceImage.data || entityMatches.data) && <MediaGrid assets={activeAssets} explanations={referenceImage.data || similar.data || entityMatches.data ? undefined : keywordExplanations} matchingSegments={referenceImage.data || similar.data || entityMatches.data ? undefined : keywordMatchingSegments} selectedAssetIds={selectedAssetIds} onToggleSelection={(assetId) => setSelectedAssetIds((current) => { const next = new Set(current); if (next.has(assetId)) next.delete(assetId); else next.add(assetId); return next; })} onViewSegments={(assetId, matchingSegmentIds) => setSegmentFocus({ assetId, matchingSegmentIds })} onFindSimilar={(assetId) => { setSimilarReference(assetId); referenceImage.reset(); entityMatches.reset(); setSegmentFocus(null); similar.mutate(assetId); }} />}
       {segmentFocus && <SegmentPanel assetId={segmentFocus.assetId} matchingSegmentIds={segmentFocus.matchingSegmentIds} onClose={() => setSegmentFocus(null)} />}
