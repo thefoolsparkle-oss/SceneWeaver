@@ -1,4 +1,4 @@
-import { addAssetAcgTag, listAssetAcgTags, openAsset, removeAssetAcgTag, revealAssetInFolder, copyToClipboard, detectAssetShots, favoriteAssetIds, toggleFavorite as persistFavorite, addToDefaultSelects } from '@/api';
+import { addAssetAcgTag, listAssetAcgTags, openAsset, removeAssetAcgTag, revealAssetInFolder, copyAssetRelativePath, copyToClipboard, detectAssetShots, favoriteAssetIds, toggleFavorite as persistFavorite, addToDefaultSelects } from '@/api';
 import { formatBytes, formatDuration } from '@/lib/mediaFormat';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -129,6 +129,9 @@ function MediaCard({ asset, isFavorite, onViewSegments, onFindSimilar, onEntityF
         </ActionButton>
         <ActionButton onClick={() => copyToClipboard(asset.file_path)} title="复制路径">
           复制
+        </ActionButton>
+        <ActionButton onClick={() => copyAssetRelativePath(asset.id)} title="复制相对素材库根目录的路径">
+          相对路径
         </ActionButton>
         <ActionButton onClick={toggleFavorite} title={favorite ? '取消收藏' : '收藏'}>
           {favorite ? '★' : '☆'}

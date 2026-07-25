@@ -169,6 +169,8 @@ export const revealAssetInFolder = (assetId: string): Promise<void> =>
 
 export const copyToClipboard = (text: string): Promise<void> =>
   invoke('copy_to_clipboard', { text });
+export const copyAssetRelativePath = (assetId: string): Promise<void> =>
+  invoke('copy_asset_relative_path', { assetId });
 
 // Progress events are emitted from Rust and listened via Tauri event API
 export type { ScanProgress };

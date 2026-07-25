@@ -55,6 +55,7 @@ pub fn register_commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + 
         system::open_asset,
         system::reveal_asset_in_folder,
         system::copy_to_clipboard,
+        system::copy_asset_relative_path,
         entity::create_entity,
         entity::list_entities,
         entity::add_entity_reference_image,

@@ -219,3 +219,29 @@ pub async fn copy_to_clipboard(app: tauri::AppHandle, text: String) -> AppResult
         .map_err(|e| crate::core::error::AppError::Other(format!("写入剪贴板失败: {}", e)))?;
     Ok(())
 }
+
+#[tauri::command]
+pub async fn copy_asset_relative_path(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    asset_id: String,
+) -> AppResult<()> {
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+    let asset = state
+        .db
+        .get_asset(&asset_id)?
+        .ok_or_else(|| crate::core::error::AppError::AssetNotFound(asset_id))?;
+    let library = state
+        .db
+        .get_library(&asset.library_id)?
+        .ok_or_else(|| crate::core::error::AppError::Other("素材库不存在或已被删除".to_string()))?;
+    let relative = std::path::Path::new(&asset.file_path)
+        .strip_prefix(&library.root_path)
+        .map_err(|_| {
+            crate::core::error::AppError::Other("素材路径不属于其素材库根目录".to_string())
+        })?;
+    app.clipboard()
+        .write_text(relative.to_string_lossy().to_string())
+        .map_err(|error| crate::core::error::AppError::Other(format!("写入剪贴板失败: {error}")))?;
+    Ok(())
+}
