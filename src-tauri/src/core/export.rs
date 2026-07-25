@@ -59,12 +59,13 @@ pub fn write_select_items_csv(path: &Path, items: &[SelectItem]) -> AppResult<()
     {
         return Err(AppError::Other("导出文件必须使用 .csv 扩展名".to_string()));
     }
-    let mut output =
-        String::from("file_name,file_path,media_type,start_timecode,end_timecode,rating,note\r\n");
+    let mut output = String::from(
+        "file_name,file_path,media_type,start_timecode,end_timecode,rating,note,tags\r\n",
+    );
     for item in items {
         let (start, end) = select_range(item);
         output.push_str(&format!(
-            "{},{},{},{},{},{},{}\r\n",
+            "{},{},{},{},{},{},{},{}\r\n",
             csv_escape(&item.asset.file_name),
             csv_escape(&item.asset.file_path),
             item.asset.media_type.as_str(),
@@ -73,7 +74,8 @@ pub fn write_select_items_csv(path: &Path, items: &[SelectItem]) -> AppResult<()
             item.rating
                 .map(|value| value.to_string())
                 .unwrap_or_default(),
-            csv_escape(item.note.as_deref().unwrap_or(""))
+            csv_escape(item.note.as_deref().unwrap_or("")),
+            csv_escape(&item.tags.join(" | "))
         ));
     }
     std::fs::write(path, output)?;
@@ -170,6 +172,12 @@ pub fn write_select_contact_sheet_html(
                 html_escape(note)
             ));
         }
+        if !item.tags.is_empty() {
+            output.push_str(&format!(
+                "<p class=\"meta\"><span class=\"label\">标签：</span>{}</p>",
+                html_escape(&item.tags.join(" · "))
+            ));
+        }
         output.push_str("</div></article>");
     }
     output.push_str("</main></body></html>\n");
@@ -193,6 +201,7 @@ pub fn write_select_items_json(path: &Path, items: &[SelectItem]) -> AppResult<(
                 "end_timecode": timecode(end),
                 "rating": item.rating,
                 "note": item.note,
+                "tags": item.tags,
             })
         })
         .collect();

@@ -103,6 +103,7 @@ export interface CreateSelectCollectionRequest { name: string; description?: str
 export interface SelectItem {
   id: string; collection_id: string; asset_id: string; segment_id: string | null; position: number;
   rating: number | null; note: string | null; recommended_in_ms: number | null; recommended_out_ms: number | null;
+  tags: string[];
   created_at: number; updated_at: number; asset: Asset; segment: Segment | null;
 }
 export interface UpdateSelectItemRequest { rating: number | null; note: string | null; recommended_in_ms: number | null; recommended_out_ms: number | null; }

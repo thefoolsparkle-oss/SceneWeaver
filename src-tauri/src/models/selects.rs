@@ -31,6 +31,7 @@ pub struct SelectItem {
     pub note: Option<String>,
     pub recommended_in_ms: Option<i64>,
     pub recommended_out_ms: Option<i64>,
+    pub tags: Vec<String>,
     pub created_at: i64,
     pub updated_at: i64,
     pub asset: Asset,

@@ -115,6 +115,10 @@ impl Database {
 
     pub fn delete_library(&self, id: &str) -> AppResult<()> {
         let conn = self.open()?;
+        conn.execute(
+            "DELETE FROM tags WHERE scope_type = 'select_item' AND scope_id IN (SELECT item.id FROM selects_items item JOIN assets asset ON asset.id = item.asset_id WHERE asset.library_id = ?1)",
+            [id],
+        )?;
         conn.execute("DELETE FROM assets WHERE library_id = ?1", [id])?;
         conn.execute("DELETE FROM jobs WHERE library_id = ?1", [id])?;
         conn.execute("DELETE FROM libraries WHERE id = ?1", [id])?;
@@ -642,6 +646,10 @@ impl Database {
             [asset_id],
         )?;
         transaction.execute(
+            "DELETE FROM tags WHERE scope_type = 'select_item' AND scope_id IN (SELECT id FROM selects_items WHERE segment_id IN (SELECT id FROM segments WHERE asset_id = ?1))",
+            [asset_id],
+        )?;
+        transaction.execute(
             "DELETE FROM selects_items WHERE segment_id IN (SELECT id FROM segments WHERE asset_id = ?1)",
             [asset_id],
         )?;
@@ -790,6 +798,10 @@ impl Database {
     pub fn delete_asset_by_path(&self, normalized_path: &str) -> AppResult<()> {
         let conn = self.open()?;
         conn.execute(
+            "DELETE FROM tags WHERE scope_type = 'select_item' AND scope_id IN (SELECT item.id FROM selects_items item JOIN assets asset ON asset.id = item.asset_id WHERE asset.normalized_path = ?1)",
+            [normalized_path],
+        )?;
+        conn.execute(
             "DELETE FROM assets WHERE normalized_path = ?1",
             [normalized_path],
         )?;
@@ -815,6 +827,10 @@ impl Database {
         let transaction = conn.transaction()?;
         // Detected segment ids are regenerated on every detection pass. Remove their
         // selects entries in the same transaction so a user never sees a stale range.
+        transaction.execute(
+            "DELETE FROM tags WHERE scope_type = 'select_item' AND scope_id IN (SELECT id FROM selects_items WHERE segment_id IN (SELECT id FROM segments WHERE asset_id = ?1))",
+            [asset_id],
+        )?;
         transaction.execute(
             "DELETE FROM selects_items WHERE segment_id IN (SELECT id FROM segments WHERE asset_id = ?1)",
             [asset_id],
@@ -1092,8 +1108,9 @@ impl Database {
 
     pub fn list_select_items(&self, collection_id: &str) -> AppResult<Vec<SelectItem>> {
         let conn = self.open()?;
-        let mut statement = conn.prepare(
-            "SELECT item.id, item.collection_id, item.asset_id, item.segment_id, item.position, item.rating, item.note,
+        let mut items = {
+            let mut statement = conn.prepare(
+                "SELECT item.id, item.collection_id, item.asset_id, item.segment_id, item.position, item.rating, item.note,
                     item.recommended_in_ms, item.recommended_out_ms, item.created_at, item.updated_at,
                     a.id, a.library_id, a.media_type, a.file_path, a.normalized_path, a.file_name, a.extension,
                     a.size_bytes, a.modified_at, a.quick_fingerprint, a.full_hash, a.duration_ms, a.width, a.height,
@@ -1105,50 +1122,108 @@ impl Database {
              FROM selects_items item JOIN assets a ON a.id = item.asset_id
              LEFT JOIN segments segment ON segment.id = item.segment_id AND segment.asset_id = item.asset_id
              WHERE item.collection_id = ?1 ORDER BY item.position, item.created_at",
-        )?;
-        let rows = statement.query_map([collection_id], |row| {
-            let segment_id: Option<String> = row.get(33)?;
-            let segment = if let Some(id) = segment_id {
-                Some(Segment {
-                    id,
-                    asset_id: row.get(34)?,
-                    segment_type: row.get(35)?,
-                    segment_index: row.get(36)?,
-                    start_ms: row.get(37)?,
-                    end_ms: row.get(38)?,
-                    duration_ms: row.get(39)?,
-                    representative_frame_path: row.get(40)?,
-                    thumbnail_path: row.get(41)?,
-                    thumbnail_data_url: None,
-                    preview_path: row.get(42)?,
-                    quality_score: row.get(43)?,
-                    subtitle_present: row.get::<_, Option<i64>>(44)?.map(|value| value != 0),
-                    game_ui: row.get::<_, Option<i64>>(45)?.map(|value| value != 0),
-                    black_frame_score: row.get(46)?,
-                    blur_score: row.get(47)?,
-                    embedding_ref: row.get(48)?,
-                    created_at: row.get(49)?,
-                    updated_at: row.get(50)?,
+                )?;
+            let rows = statement.query_map([collection_id], |row| {
+                let segment_id: Option<String> = row.get(33)?;
+                let segment = if let Some(id) = segment_id {
+                    Some(Segment {
+                        id,
+                        asset_id: row.get(34)?,
+                        segment_type: row.get(35)?,
+                        segment_index: row.get(36)?,
+                        start_ms: row.get(37)?,
+                        end_ms: row.get(38)?,
+                        duration_ms: row.get(39)?,
+                        representative_frame_path: row.get(40)?,
+                        thumbnail_path: row.get(41)?,
+                        thumbnail_data_url: None,
+                        preview_path: row.get(42)?,
+                        quality_score: row.get(43)?,
+                        subtitle_present: row.get::<_, Option<i64>>(44)?.map(|value| value != 0),
+                        game_ui: row.get::<_, Option<i64>>(45)?.map(|value| value != 0),
+                        black_frame_score: row.get(46)?,
+                        blur_score: row.get(47)?,
+                        embedding_ref: row.get(48)?,
+                        created_at: row.get(49)?,
+                        updated_at: row.get(50)?,
+                    })
+                } else {
+                    None
+                };
+                Ok(SelectItem {
+                    id: row.get(0)?,
+                    collection_id: row.get(1)?,
+                    asset_id: row.get(2)?,
+                    segment_id: row.get(3)?,
+                    position: row.get(4)?,
+                    rating: row.get(5)?,
+                    note: row.get(6)?,
+                    recommended_in_ms: row.get(7)?,
+                    recommended_out_ms: row.get(8)?,
+                    tags: Vec::new(),
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
+                    asset: row_to_asset_at(row, 11)?,
+                    segment,
                 })
-            } else {
-                None
-            };
-            Ok(SelectItem {
-                id: row.get(0)?,
-                collection_id: row.get(1)?,
-                asset_id: row.get(2)?,
-                segment_id: row.get(3)?,
-                position: row.get(4)?,
-                rating: row.get(5)?,
-                note: row.get(6)?,
-                recommended_in_ms: row.get(7)?,
-                recommended_out_ms: row.get(8)?,
-                created_at: row.get(9)?,
-                updated_at: row.get(10)?,
-                asset: row_to_asset_at(row, 11)?,
-                segment,
-            })
-        })?;
+            })?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(AppError::from)?
+        };
+        for item in &mut items {
+            item.tags = Self::select_item_tags_conn(&conn, &item.id)?;
+        }
+        Ok(items)
+    }
+
+    pub fn add_select_item_tag(&self, item_id: &str, value: &str) -> AppResult<Vec<String>> {
+        let value = value.trim();
+        if value.is_empty() || value.chars().count() > 80 {
+            return Err(AppError::Other("标签不能为空且最长 80 个字符".to_string()));
+        }
+        let conn = self.open()?;
+        let exists: Option<i64> = conn
+            .query_row(
+                "SELECT 1 FROM selects_items WHERE id = ?1",
+                [item_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if exists.is_none() {
+            return Err(AppError::Other("选片项不存在或已被删除".to_string()));
+        }
+        let duplicate: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM tags WHERE scope_type = 'select_item' AND scope_id = ?1 AND namespace = 'selects' AND value = ?2 COLLATE NOCASE)",
+            params![item_id, value],
+            |row| row.get(0),
+        )?;
+        if !duplicate {
+            let now = chrono::Utc::now().timestamp_millis();
+            conn.execute(
+                "INSERT INTO tags (id, scope_type, scope_id, namespace, key, value, source, user_confirmed, created_at, updated_at) VALUES (?1, 'select_item', ?2, 'selects', 'label', ?3, 'user', 1, ?4, ?4)",
+                params![uuid::Uuid::new_v4().to_string(), item_id, value, now],
+            )?;
+        }
+        Self::select_item_tags_conn(&conn, item_id)
+    }
+
+    pub fn remove_select_item_tag(&self, item_id: &str, value: &str) -> AppResult<()> {
+        let conn = self.open()?;
+        let deleted = conn.execute(
+            "DELETE FROM tags WHERE scope_type = 'select_item' AND scope_id = ?1 AND namespace = 'selects' AND value = ?2 COLLATE NOCASE",
+            params![item_id, value.trim()],
+        )?;
+        if deleted == 0 {
+            return Err(AppError::Other("选片标签不存在或已被删除".to_string()));
+        }
+        Ok(())
+    }
+
+    fn select_item_tags_conn(conn: &Connection, item_id: &str) -> AppResult<Vec<String>> {
+        let mut statement = conn.prepare(
+            "SELECT value FROM tags WHERE scope_type = 'select_item' AND scope_id = ?1 AND namespace = 'selects' ORDER BY created_at ASC, value COLLATE NOCASE",
+        )?;
+        let rows = statement.query_map([item_id], |row| row.get(0))?;
         rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
     }
 
@@ -1178,8 +1253,14 @@ impl Database {
     }
 
     pub fn remove_select_item(&self, item_id: &str) -> AppResult<()> {
-        let conn = self.open()?;
-        conn.execute("DELETE FROM selects_items WHERE id = ?1", [item_id])?;
+        let mut conn = self.open()?;
+        let transaction = conn.transaction()?;
+        transaction.execute(
+            "DELETE FROM tags WHERE scope_type = 'select_item' AND scope_id = ?1",
+            [item_id],
+        )?;
+        transaction.execute("DELETE FROM selects_items WHERE id = ?1", [item_id])?;
+        transaction.commit()?;
         Ok(())
     }
 

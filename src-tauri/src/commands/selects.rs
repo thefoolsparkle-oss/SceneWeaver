@@ -78,6 +78,24 @@ pub async fn add_assets_to_select_collection(
 }
 
 #[tauri::command]
+pub async fn add_select_item_tag(
+    state: State<'_, AppState>,
+    item_id: String,
+    value: String,
+) -> AppResult<Vec<String>> {
+    state.db.add_select_item_tag(&item_id, &value)
+}
+
+#[tauri::command]
+pub async fn remove_select_item_tag(
+    state: State<'_, AppState>,
+    item_id: String,
+    value: String,
+) -> AppResult<()> {
+    state.db.remove_select_item_tag(&item_id, &value)
+}
+
+#[tauri::command]
 pub async fn update_select_item(
     state: State<'_, AppState>,
     item_id: String,

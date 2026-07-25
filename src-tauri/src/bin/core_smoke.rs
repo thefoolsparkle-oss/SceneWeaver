@@ -575,14 +575,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         db.list_select_items(&default_collection.id)?[0].id,
         segment_item.id
     );
+    assert_eq!(
+        db.add_select_item_tag(&segment_item.id, "高潮")?,
+        vec!["高潮".to_string()]
+    );
+    assert_eq!(
+        db.add_select_item_tag(&segment_item.id, "高潮")?,
+        vec!["高潮".to_string()]
+    );
+    db.add_select_item_tag(&segment_item.id, "雨夜")?;
+    assert_eq!(
+        db.list_select_items(&default_collection.id)?[0].tags,
+        vec!["高潮".to_string(), "雨夜".to_string()]
+    );
     let mut range_items = db.list_select_items(&default_collection.id)?;
     assert_eq!(db.default_select_items()?.len(), range_items.len());
     let range_csv_path = root.join("range-selects.csv");
     write_select_items_csv(&range_csv_path, &range_items)?;
     assert!(std::fs::read_to_string(&range_csv_path)?.contains("00:00:01.000"));
+    assert!(std::fs::read_to_string(&range_csv_path)?.contains("高潮 | 雨夜"));
     let range_json_path = root.join("range-selects.json");
     write_select_items_json(&range_json_path, &range_items)?;
     assert!(std::fs::read_to_string(&range_json_path)?.contains("\"start_ms\": 1000"));
+    assert!(std::fs::read_to_string(&range_json_path)?.contains("\"tags\": ["));
     let range_edl_path = root.join("range-selects.edl");
     write_select_items_edl(&range_edl_path, &range_items)?;
     assert!(std::fs::read_to_string(&range_edl_path)?.contains("00:00:01:00"));
@@ -604,9 +619,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert!(contact_sheet_html.contains("SceneWeaver 选片联系表"));
     assert!(contact_sheet_html.contains("data:image/jpeg;base64,"));
     assert!(contact_sheet_html.contains("00:00:01.000"));
+    assert!(contact_sheet_html.contains("高潮 · 雨夜"));
 
     db.replace_segments(&primary_asset.id, &[])?;
     assert_eq!(db.list_select_items(&default_collection.id)?.len(), 1);
+    assert!(db.remove_select_item_tag(&segment_item.id, "高潮").is_err());
 
     // A source replacement must invalidate content-derived vectors and
     // segment ranges while keeping the stable asset-level select intact.
