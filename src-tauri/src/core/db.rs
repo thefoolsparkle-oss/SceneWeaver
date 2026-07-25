@@ -518,6 +518,14 @@ impl Database {
             sql.push_str(" AND (media_type = 'image' OR EXISTS (SELECT 1 FROM segments WHERE segments.asset_id = assets.id AND quality_score >= ?))");
             values.push(min_quality_score.into());
         }
+        if let Some(date_start_ms) = request.date_start_ms {
+            sql.push_str(" AND COALESCE(capture_time, modified_at) >= ?");
+            values.push(date_start_ms.into());
+        }
+        if let Some(date_end_ms) = request.date_end_ms {
+            sql.push_str(" AND COALESCE(capture_time, modified_at) <= ?");
+            values.push(date_end_ms.into());
+        }
         if let Some(predicate) =
             segment_labels_predicate(&must_segment_labels, &must_not_segment_labels)
         {
@@ -576,6 +584,14 @@ impl Database {
         if let Some(min_quality_score) = request.min_quality_score {
             sql.push_str(" AND (media_type = 'image' OR EXISTS (SELECT 1 FROM segments WHERE segments.asset_id = assets.id AND quality_score >= ?))");
             values.push(min_quality_score.into());
+        }
+        if let Some(date_start_ms) = request.date_start_ms {
+            sql.push_str(" AND COALESCE(capture_time, modified_at) >= ?");
+            values.push(date_start_ms.into());
+        }
+        if let Some(date_end_ms) = request.date_end_ms {
+            sql.push_str(" AND COALESCE(capture_time, modified_at) <= ?");
+            values.push(date_end_ms.into());
         }
         let must_segment_labels = request
             .must

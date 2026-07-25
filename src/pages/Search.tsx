@@ -6,6 +6,7 @@ import { MediaGrid } from '@/components/MediaGrid';
 import { SegmentPanel } from '@/components/SegmentPanel';
 import { parseQueryConditions, replaceQueryCondition } from '@/lib/queryConditions';
 import { ACG_CREATOR_PRESETS, applyAcgCreatorPack } from '@/lib/acgCreatorPack';
+import { assetMatchesDateRange, dateInputBoundary } from '@/lib/dateRange';
 import { acgCreatorPackEnabled } from '@/api';
 import { useQuery } from '@tanstack/react-query';
 import type { MediaType, SearchRequest } from '@/types';
@@ -20,6 +21,8 @@ export default function Search() {
   const [conditions, setConditions] = useState<SearchRequest | null>(null);
   const [mediaTypes, setMediaTypes] = useState<MediaType[]>([]);
   const [minQuality, setMinQuality] = useState<number | null>(null);
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
   const [entityId, setEntityId] = useState('');
   const [segmentFocus, setSegmentFocus] = useState<{ assetId: string; matchingSegmentIds?: string[] } | null>(null);
   const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
@@ -35,12 +38,22 @@ export default function Search() {
   const hiddenAssets = useQuery({ queryKey: ['hiddenAssets'], queryFn: hiddenAssetIds });
   const selectCollections = useQuery({ queryKey: ['selectCollections'], queryFn: listSelectCollections });
   const acgPack = useQuery({ queryKey: ['acgCreatorPack'], queryFn: acgCreatorPackEnabled });
+  const dateStartMs = dateInputBoundary(dateStart, 'start');
+  const dateEndMs = dateInputBoundary(dateEnd, 'end');
+  const invalidDateRange = dateStartMs !== null && dateEndMs !== null && dateStartMs > dateEndMs;
 
   const runQuery = (rawQuery: string) => {
     if (rawQuery.trim()) {
       const parsed = parseQueryConditions(rawQuery.trim());
       similar.reset(); entityMatches.reset(); setSimilarReference(null); setSegmentFocus(null); setSelectedAssetIds(new Set());
-      const request = { ...(acgPack.data ? applyAcgCreatorPack(parsed) : parsed), media_types: mediaTypes, min_quality_score: minQuality };
+      if (invalidDateRange) return;
+      const request = {
+        ...(acgPack.data ? applyAcgCreatorPack(parsed) : parsed),
+        media_types: mediaTypes,
+        min_quality_score: minQuality,
+        date_start_ms: dateStartMs,
+        date_end_ms: dateEndMs,
+      };
       setConditions(request);
       search.mutate(request);
     }
@@ -60,7 +73,9 @@ export default function Search() {
   const keywordMatchingSegments = Object.fromEntries((search.data ?? []).map((result) => [result.asset.id, result.matching_segment_ids]));
   const activeEntity = entities.data?.find((entity) => entity.id === entityId);
   const entityExplanations = Object.fromEntries((entityMatches.data ?? []).map((asset) => [asset.id, { reasons: [`本地实体匹配：${activeEntity?.name ?? '已选实体'}（名称、别名或正参考图）`], unmet: [] }]));
-  const activeAssets = (entityMatches.data ?? referenceImage.data ?? similar.data ?? keywordAssets).filter((asset) => !hiddenAssets.data?.includes(asset.id));
+  const activeAssets = (entityMatches.data ?? referenceImage.data ?? similar.data ?? keywordAssets)
+    .filter((asset) => !hiddenAssets.data?.includes(asset.id))
+    .filter((asset) => assetMatchesDateRange(asset, dateStartMs, dateEndMs));
   const removeCondition = (kind: 'must' | 'should' | 'must_not', term: string) => {
     if (!conditions) return;
     const request = { ...conditions, [kind]: conditions[kind].filter((value) => value !== term) };
@@ -84,7 +99,7 @@ export default function Search() {
           placeholder="例如：雨夜、角色、采访"
           className="min-w-0 flex-1 rounded-lg border border-neutral-300 px-4 py-2.5 dark:border-neutral-700 dark:bg-neutral-900"
         />
-        <button disabled={!query.trim() || search.isPending} className="rounded-lg bg-brand-600 px-5 font-medium text-white disabled:opacity-50">
+        <button disabled={!query.trim() || search.isPending || invalidDateRange} className="rounded-lg bg-brand-600 px-5 font-medium text-white disabled:opacity-50">
           {search.isPending ? '搜索中…' : '搜索'}
         </button>
         <button type="button" onClick={chooseReferenceImage} disabled={referenceImage.isPending} className="rounded-lg border px-4 text-sm disabled:opacity-50">{referenceImage.isPending ? '检索中…' : '参考图'}</button>
@@ -100,6 +115,14 @@ export default function Search() {
       </div>
       <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-neutral-500"><span>素材类型：</span>{([{ value: 'image', label: '图片' }, { value: 'video', label: '视频' }, { value: 'audio', label: '音频' }] as const).map(({ value, label }) => <button type="button" key={value} onClick={() => toggleMediaType(value)} className={`rounded-full border px-2 py-1 ${mediaTypes.includes(value) ? 'border-brand-500 bg-brand-50 text-brand-700' : ''}`}>{label}</button>)}</div>
       <label className="mb-4 flex items-center gap-2 text-xs text-neutral-500">最低视频片段质量<select value={minQuality ?? ''} onChange={(event) => setMinQuality(event.target.value === '' ? null : Number(event.target.value))} className="rounded border px-2 py-1"><option value="">不限</option><option value="0.5">50%</option><option value="0.7">70%</option><option value="0.85">85%</option></select></label>
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+        <span>日期范围（当前按本地文件修改时间）</span>
+        <input aria-label="开始日期" type="date" value={dateStart} onChange={(event) => setDateStart(event.target.value)} className="rounded border px-2 py-1 dark:border-neutral-700 dark:bg-neutral-900" />
+        <span>至</span>
+        <input aria-label="结束日期" type="date" value={dateEnd} onChange={(event) => setDateEnd(event.target.value)} className="rounded border px-2 py-1 dark:border-neutral-700 dark:bg-neutral-900" />
+        {(dateStart || dateEnd) && <button type="button" onClick={() => { setDateStart(''); setDateEnd(''); }} className="rounded border px-2 py-1">清除日期</button>}
+        {invalidDateRange && <span className="text-red-600">开始日期不能晚于结束日期</span>}
+      </div>
       {!!history.data?.length && <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-neutral-500"><span>最近搜索：</span>{history.data.map((item) => <button key={item} onClick={() => setQuery(item)} className="rounded-full border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800">{item}</button>)}</div>}
       {conditions && (
         <div className="mb-4 flex flex-wrap gap-2 text-xs">

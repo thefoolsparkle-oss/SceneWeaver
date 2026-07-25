@@ -91,6 +91,8 @@ export interface SearchRequest {
   must_not: string[];
   media_types?: MediaType[];
   min_quality_score?: number | null;
+  date_start_ms?: number | null;
+  date_end_ms?: number | null;
 }
 export interface SearchResult { asset: Asset; score: number; match_reasons: string[]; unmet_should: string[]; matching_segment_ids: string[]; }
 

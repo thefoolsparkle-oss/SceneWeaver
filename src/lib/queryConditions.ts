@@ -13,7 +13,16 @@ export function parseQueryConditions(rawQuery: string): SearchRequest {
     return '';
   });
   const must = cleaned.split(/[，,。；;\s]+/).map((term) => term.trim()).filter(Boolean);
-  return { raw_query: rawQuery, must, should, must_not: mustNot, media_types: [], min_quality_score: null };
+  return {
+    raw_query: rawQuery,
+    must,
+    should,
+    must_not: mustNot,
+    media_types: [],
+    min_quality_score: null,
+    date_start_ms: null,
+    date_end_ms: null,
+  };
 }
 
 export function replaceQueryCondition(request: SearchRequest, kind: 'must' | 'should' | 'must_not', term: string, replacement: string): SearchRequest {

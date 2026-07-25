@@ -402,12 +402,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 must_not: vec![],
                 media_types: vec![],
                 min_quality_score: None,
+                date_start_ms: None,
+                date_end_ms: None,
             },
             10,
         )?[0]
             .id,
         primary_asset.id
     );
+    let exact_modified_date_request = SearchRequest {
+        raw_query: String::new(),
+        must: vec!["游戏 UI".to_string()],
+        should: vec![],
+        must_not: vec![],
+        media_types: vec![],
+        min_quality_score: None,
+        date_start_ms: Some(primary_asset.modified_at),
+        date_end_ms: Some(primary_asset.modified_at),
+    };
+    assert!(db
+        .search_assets_with_conditions(&exact_modified_date_request, 10)?
+        .iter()
+        .any(|asset| asset.id == primary_asset.id));
+    let after_modified_date_request = SearchRequest {
+        date_start_ms: Some(primary_asset.modified_at + 1),
+        date_end_ms: None,
+        ..exact_modified_date_request
+    };
+    assert!(db
+        .search_assets_with_conditions(&after_modified_date_request, 10)?
+        .is_empty());
     db.remove_asset_acg_tag(&primary_asset.id, "游戏 UI")?;
     assert!(db.asset_acg_tags(&primary_asset.id)?.is_empty());
     let entity = Entity {
@@ -440,6 +464,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         must_not: vec![],
         media_types: vec![],
         min_quality_score: None,
+        date_start_ms: None,
+        date_end_ms: None,
     };
     assert!(db
         .entities_matching_search_request(&entity_request)?
@@ -456,6 +482,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         must_not: vec!["角色".to_string()],
         media_types: vec![],
         min_quality_score: None,
+        date_start_ms: None,
+        date_end_ms: None,
     };
     assert!(db
         .entities_matching_search_request(&exclusion_only_entity_request)?
@@ -497,6 +525,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 must_not: vec![],
                 media_types: vec!["audio".to_string()],
                 min_quality_score: None,
+                date_start_ms: None,
+                date_end_ms: None,
             },
             10,
         )?
@@ -842,6 +872,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             must_not: vec![],
             media_types: vec!["video".to_string()],
             min_quality_score: None,
+            date_start_ms: None,
+            date_end_ms: None,
         };
         assert!(db
             .search_assets_with_conditions(&subtitle_request, 10)?
@@ -858,6 +890,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             must_not: vec![],
             media_types: vec!["video".to_string()],
             min_quality_score: None,
+            date_start_ms: None,
+            date_end_ms: None,
         };
         assert!(db
             .search_assets_with_conditions(&ui_request, 10)?
@@ -889,6 +923,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             must_not: vec![],
             media_types: vec!["video".to_string()],
             min_quality_score: None,
+            date_start_ms: None,
+            date_end_ms: None,
         };
         assert!(db
             .search_assets_with_conditions(&quality_label_request, 10)?

@@ -15,6 +15,12 @@ pub struct SearchRequest {
     pub media_types: Vec<String>,
     #[serde(default)]
     pub min_quality_score: Option<f64>,
+    /// Inclusive Unix-millisecond bounds. The database uses capture time when
+    /// available and safely falls back to the indexed file modification time.
+    #[serde(default)]
+    pub date_start_ms: Option<i64>,
+    #[serde(default)]
+    pub date_end_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
