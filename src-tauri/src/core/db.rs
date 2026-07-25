@@ -887,6 +887,35 @@ impl Database {
         rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
     }
 
+    pub fn set_asset_hidden(&self, asset_id: &str, hidden: bool) -> AppResult<()> {
+        let conn = self.open()?;
+        if hidden {
+            let exists: Option<i64> = conn
+                .query_row("SELECT 1 FROM assets WHERE id = ?1", [asset_id], |row| {
+                    row.get(0)
+                })
+                .optional()?;
+            if exists.is_none() {
+                return Err(AppError::AssetNotFound(asset_id.to_string()));
+            }
+            conn.execute(
+                "INSERT OR IGNORE INTO hidden_assets (asset_id, created_at) VALUES (?1, ?2)",
+                params![asset_id, chrono::Utc::now().timestamp_millis()],
+            )?;
+        } else {
+            conn.execute("DELETE FROM hidden_assets WHERE asset_id = ?1", [asset_id])?;
+        }
+        Ok(())
+    }
+
+    pub fn hidden_asset_ids(&self) -> AppResult<Vec<String>> {
+        let conn = self.open()?;
+        let mut stmt =
+            conn.prepare("SELECT asset_id FROM hidden_assets ORDER BY created_at DESC")?;
+        let rows = stmt.query_map([], |row| row.get(0))?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+    }
+
     pub fn add_to_default_selects(&self, asset_id: &str) -> AppResult<()> {
         let conn = self.open()?;
         let collection_id = Self::default_select_collection_id(&conn)?;
@@ -2029,7 +2058,7 @@ fn run_migrations(conn: &Connection) -> AppResult<()> {
     let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     if version == 0 {
         create_schema(conn)?;
-        conn.execute_batch("PRAGMA user_version = 8;")?;
+        conn.execute_batch("PRAGMA user_version = 9;")?;
         return Ok(());
     }
 
@@ -2056,6 +2085,9 @@ fn run_migrations(conn: &Connection) -> AppResult<()> {
     }
     if version < 8 {
         conn.execute_batch("CREATE TABLE IF NOT EXISTS entity_reference_embeddings (reference_id TEXT NOT NULL, provider_id TEXT NOT NULL, model_version TEXT NOT NULL, vector_json TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (reference_id, provider_id), FOREIGN KEY (reference_id) REFERENCES entity_references(id) ON DELETE CASCADE); CREATE INDEX IF NOT EXISTS idx_entity_reference_embeddings_provider ON entity_reference_embeddings(provider_id, model_version); INSERT OR IGNORE INTO entity_reference_embeddings (reference_id, provider_id, model_version, vector_json, created_at, updated_at) SELECT id, 'local-color-histogram', 'v1', embedding_ref, created_at, created_at FROM entity_references WHERE embedding_ref IS NOT NULL; PRAGMA user_version = 8;")?;
+    }
+    if version < 9 {
+        conn.execute_batch("CREATE TABLE IF NOT EXISTS hidden_assets (asset_id TEXT PRIMARY KEY, created_at INTEGER NOT NULL, FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE); PRAGMA user_version = 9;")?;
     }
     Ok(())
 }
@@ -2255,6 +2287,7 @@ fn create_schema(conn: &Connection) -> AppResult<()> {
         CREATE INDEX IF NOT EXISTS idx_selects_collection ON selects_items(collection_id);",
     )?;
     conn.execute_batch("CREATE TABLE IF NOT EXISTS favorites (asset_id TEXT PRIMARY KEY, created_at INTEGER NOT NULL, FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE);")?;
+    conn.execute_batch("CREATE TABLE IF NOT EXISTS hidden_assets (asset_id TEXT PRIMARY KEY, created_at INTEGER NOT NULL, FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE);")?;
     conn.execute_batch("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL);")?;
     Ok(())
 }

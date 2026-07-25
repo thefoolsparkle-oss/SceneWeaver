@@ -373,7 +373,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         [],
         |row| row.get(0),
     )?;
-    assert_eq!(schema_version, 8);
+    assert_eq!(schema_version, 9);
     let reopened_embedding_count: i64 = rusqlite::Connection::open(root.join("sceneweaver.db"))?
         .query_row(
             "SELECT COUNT(*) FROM asset_embeddings WHERE asset_id = ?1",
@@ -502,6 +502,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?
         .is_empty());
     db.add_to_default_selects(&primary_asset.id)?;
+    db.set_asset_hidden(&primary_asset.id, true)?;
+    db.set_asset_hidden(&primary_asset.id, true)?;
+    assert_eq!(db.hidden_asset_ids()?, vec![primary_asset.id.clone()]);
+    db.set_asset_hidden(&primary_asset.id, false)?;
+    assert!(db.hidden_asset_ids()?.is_empty());
     assert_eq!(
         db.add_assets_to_default_selects(&[primary_asset.id.clone()])?,
         0

@@ -13,9 +13,10 @@ interface MediaGridProps {
   matchingSegments?: Record<string, string[]>;
   selectedAssetIds?: Set<string>;
   onToggleSelection?: (assetId: string) => void;
+  onHide?: (assetId: string) => void;
 }
 
-export function MediaGrid({ assets, onViewSegments, onFindSimilar, onEntityFeedback, explanations, matchingSegments, selectedAssetIds, onToggleSelection }: MediaGridProps) {
+export function MediaGrid({ assets, onViewSegments, onFindSimilar, onEntityFeedback, explanations, matchingSegments, selectedAssetIds, onToggleSelection, onHide }: MediaGridProps) {
   const favorites = useQuery({ queryKey: ['favorites'], queryFn: favoriteAssetIds });
   if (assets.length === 0) {
     return (
@@ -28,13 +29,13 @@ export function MediaGrid({ assets, onViewSegments, onFindSimilar, onEntityFeedb
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
       {assets.map((asset) => (
-        <MediaCard key={asset.id} asset={asset} isFavorite={favorites.data?.includes(asset.id) ?? false} onViewSegments={onViewSegments} onFindSimilar={onFindSimilar} onEntityFeedback={onEntityFeedback} explanation={explanations?.[asset.id]} matchingSegmentIds={matchingSegments?.[asset.id]} batchSelected={selectedAssetIds?.has(asset.id) ?? false} onToggleSelection={onToggleSelection} />
+        <MediaCard key={asset.id} asset={asset} isFavorite={favorites.data?.includes(asset.id) ?? false} onViewSegments={onViewSegments} onFindSimilar={onFindSimilar} onEntityFeedback={onEntityFeedback} onHide={onHide} explanation={explanations?.[asset.id]} matchingSegmentIds={matchingSegments?.[asset.id]} batchSelected={selectedAssetIds?.has(asset.id) ?? false} onToggleSelection={onToggleSelection} />
       ))}
     </div>
   );
 }
 
-function MediaCard({ asset, isFavorite, onViewSegments, onFindSimilar, onEntityFeedback, explanation, matchingSegmentIds, batchSelected, onToggleSelection }: { asset: Asset; isFavorite: boolean; onViewSegments?: (assetId: string, matchingSegmentIds?: string[]) => void; onFindSimilar?: (assetId: string) => void; onEntityFeedback?: (assetId: string, isPositive: boolean) => void; explanation?: { reasons: string[]; unmet: string[] }; matchingSegmentIds?: string[]; batchSelected: boolean; onToggleSelection?: (assetId: string) => void }) {
+function MediaCard({ asset, isFavorite, onViewSegments, onFindSimilar, onEntityFeedback, onHide, explanation, matchingSegmentIds, batchSelected, onToggleSelection }: { asset: Asset; isFavorite: boolean; onViewSegments?: (assetId: string, matchingSegmentIds?: string[]) => void; onFindSimilar?: (assetId: string) => void; onEntityFeedback?: (assetId: string, isPositive: boolean) => void; onHide?: (assetId: string) => void; explanation?: { reasons: string[]; unmet: string[] }; matchingSegmentIds?: string[]; batchSelected: boolean; onToggleSelection?: (assetId: string) => void }) {
   const [isDetecting, setIsDetecting] = useState(false);
   const [segmentCount, setSegmentCount] = useState<number | null>(null);
   const [detectionError, setDetectionError] = useState<string | null>(null);
@@ -137,6 +138,7 @@ function MediaCard({ asset, isFavorite, onViewSegments, onFindSimilar, onEntityF
         </ActionButton>
         <ActionButton onClick={addAcgTag} title="添加本地 ACG 标签">标签</ActionButton>
         {onFindSimilar && <ActionButton onClick={() => onFindSimilar(asset.id)} title="查找视觉相似素材">相似</ActionButton>}
+        {onHide && <ActionButton onClick={() => onHide(asset.id)} title="在搜索结果中隐藏此素材">隐藏</ActionButton>}
         {onEntityFeedback && <><ActionButton onClick={() => onEntityFeedback(asset.id, true)} title="标记为该实体并作为正样本">是实体</ActionButton><ActionButton onClick={() => onEntityFeedback(asset.id, false)} title="标记为非该实体并作为负样本">非实体</ActionButton></>}
         {asset.media_type === 'video' && (
           <><ActionButton onClick={detectShots} title="检测镜头">{isDetecting ? '切分中…' : '切分'}</ActionButton>{onViewSegments && <ActionButton onClick={() => onViewSegments(asset.id, matchingSegmentIds)} title={matchingSegmentIds?.length ? `查看 ${matchingSegmentIds.length} 个匹配镜头片段` : '查看镜头片段'}>片段</ActionButton>}</>

@@ -71,6 +71,8 @@ export const toggleFavorite = (assetId: string): Promise<boolean> =>
   invoke('toggle_favorite', { assetId });
 
 export const favoriteAssetIds = (): Promise<string[]> => invoke('favorite_asset_ids');
+export const setAssetHidden = (assetId: string, hidden: boolean): Promise<void> => invoke('set_asset_hidden', { assetId, hidden });
+export const hiddenAssetIds = (): Promise<string[]> => invoke('hidden_asset_ids');
 
 export const addToDefaultSelects = (assetId: string): Promise<void> =>
   invoke('add_to_default_selects', { assetId });

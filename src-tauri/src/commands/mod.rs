@@ -29,6 +29,8 @@ pub fn register_commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + 
         asset::recent_searches,
         asset::toggle_favorite,
         asset::favorite_asset_ids,
+        asset::set_asset_hidden,
+        asset::hidden_asset_ids,
         asset::add_to_default_selects,
         asset::add_assets_to_default_selects,
         asset::default_select_assets,

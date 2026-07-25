@@ -579,6 +579,20 @@ pub async fn favorite_asset_ids(state: State<'_, AppState>) -> AppResult<Vec<Str
 }
 
 #[tauri::command]
+pub async fn set_asset_hidden(
+    state: State<'_, AppState>,
+    asset_id: String,
+    hidden: bool,
+) -> AppResult<()> {
+    state.db.set_asset_hidden(&asset_id, hidden)
+}
+
+#[tauri::command]
+pub async fn hidden_asset_ids(state: State<'_, AppState>) -> AppResult<Vec<String>> {
+    state.db.hidden_asset_ids()
+}
+
+#[tauri::command]
 pub async fn add_to_default_selects(state: State<'_, AppState>, asset_id: String) -> AppResult<()> {
     state.db.add_to_default_selects(&asset_id)
 }
