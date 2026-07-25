@@ -584,9 +584,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         vec!["高潮".to_string()]
     );
     db.add_select_item_tag(&segment_item.id, "雨夜")?;
+    let asset_select_item = db
+        .list_select_items(&default_collection.id)?
+        .into_iter()
+        .find(|item| item.segment_id.is_none())
+        .expect("asset select item must be present");
+    assert_eq!(
+        db.add_select_item_tag_batch(
+            &[segment_item.id.clone(), asset_select_item.id.clone()],
+            "保留",
+        )?,
+        2
+    );
+    assert_eq!(
+        db.add_select_item_tag_batch(
+            &[segment_item.id.clone(), asset_select_item.id.clone()],
+            "保留",
+        )?,
+        0
+    );
+    assert!(db
+        .add_select_item_tag_batch(
+            &[
+                asset_select_item.id.clone(),
+                "missing-select-item".to_string()
+            ],
+            "必须回滚",
+        )
+        .is_err());
+    assert!(!db
+        .list_select_items(&default_collection.id)?
+        .iter()
+        .any(|item| item.tags.iter().any(|tag| tag == "必须回滚")));
     assert_eq!(
         db.list_select_items(&default_collection.id)?[0].tags,
-        vec!["高潮".to_string(), "雨夜".to_string()]
+        vec!["高潮".to_string(), "雨夜".to_string(), "保留".to_string()]
     );
     let mut range_items = db.list_select_items(&default_collection.id)?;
     assert_eq!(db.default_select_items()?.len(), range_items.len());

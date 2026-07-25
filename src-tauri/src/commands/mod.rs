@@ -66,6 +66,7 @@ pub fn register_commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + 
         selects::add_asset_to_select_collection,
         selects::add_assets_to_select_collection,
         selects::add_select_item_tag,
+        selects::add_select_item_tag_batch,
         selects::remove_select_item_tag,
         selects::update_select_item,
         selects::remove_select_item,

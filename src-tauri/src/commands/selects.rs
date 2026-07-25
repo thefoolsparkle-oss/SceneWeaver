@@ -87,6 +87,18 @@ pub async fn add_select_item_tag(
 }
 
 #[tauri::command]
+pub async fn add_select_item_tag_batch(
+    state: State<'_, AppState>,
+    item_ids: Vec<String>,
+    value: String,
+) -> AppResult<usize> {
+    if item_ids.is_empty() {
+        return Ok(0);
+    }
+    state.db.add_select_item_tag_batch(&item_ids, &value)
+}
+
+#[tauri::command]
 pub async fn remove_select_item_tag(
     state: State<'_, AppState>,
     item_id: String,

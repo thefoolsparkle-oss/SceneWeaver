@@ -1207,6 +1207,43 @@ impl Database {
         Self::select_item_tags_conn(&conn, item_id)
     }
 
+    pub fn add_select_item_tag_batch(&self, item_ids: &[String], value: &str) -> AppResult<usize> {
+        let value = value.trim();
+        if value.is_empty() || value.chars().count() > 80 {
+            return Err(AppError::Other("标签不能为空且最长 80 个字符".to_string()));
+        }
+        let mut conn = self.open()?;
+        let transaction = conn.transaction()?;
+        let mut added = 0;
+        for item_id in item_ids {
+            let exists: Option<i64> = transaction
+                .query_row(
+                    "SELECT 1 FROM selects_items WHERE id = ?1",
+                    [item_id],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if exists.is_none() {
+                return Err(AppError::Other("选片项不存在或已被删除".to_string()));
+            }
+            let duplicate: bool = transaction.query_row(
+                "SELECT EXISTS(SELECT 1 FROM tags WHERE scope_type = 'select_item' AND scope_id = ?1 AND namespace = 'selects' AND value = ?2 COLLATE NOCASE)",
+                params![item_id, value],
+                |row| row.get(0),
+            )?;
+            if !duplicate {
+                let now = chrono::Utc::now().timestamp_millis();
+                transaction.execute(
+                    "INSERT INTO tags (id, scope_type, scope_id, namespace, key, value, source, user_confirmed, created_at, updated_at) VALUES (?1, 'select_item', ?2, 'selects', 'label', ?3, 'user', 1, ?4, ?4)",
+                    params![uuid::Uuid::new_v4().to_string(), item_id, value, now],
+                )?;
+                added += 1;
+            }
+        }
+        transaction.commit()?;
+        Ok(added)
+    }
+
     pub fn remove_select_item_tag(&self, item_id: &str, value: &str) -> AppResult<()> {
         let conn = self.open()?;
         let deleted = conn.execute(
