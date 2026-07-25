@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { open } from '@tauri-apps/plugin-dialog';
-import { findAssetsForEntity, findSimilarAssets, findSimilarByReferenceImage, listEntities, recentSearches, searchAssets } from '@/api';
+import { addAssetsToDefaultSelects, findAssetsForEntity, findSimilarAssets, findSimilarByReferenceImage, listEntities, recentSearches, searchAssets } from '@/api';
 import { MediaGrid } from '@/components/MediaGrid';
 import { SegmentPanel } from '@/components/SegmentPanel';
 import { parseQueryConditions, replaceQueryCondition } from '@/lib/queryConditions';
@@ -22,6 +22,8 @@ export default function Search() {
   const [minQuality, setMinQuality] = useState<number | null>(null);
   const [entityId, setEntityId] = useState('');
   const [segmentFocus, setSegmentFocus] = useState<{ assetId: string; matchingSegmentIds?: string[] } | null>(null);
+  const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
+  const batchSelects = useMutation({ mutationFn: addAssetsToDefaultSelects, onSuccess: () => setSelectedAssetIds(new Set()) });
   const history = useQuery({ queryKey: ['recentSearches'], queryFn: recentSearches });
   const entities = useQuery({ queryKey: ['entities'], queryFn: listEntities });
   const acgPack = useQuery({ queryKey: ['acgCreatorPack'], queryFn: acgCreatorPackEnabled });
@@ -29,7 +31,7 @@ export default function Search() {
   const runQuery = (rawQuery: string) => {
     if (rawQuery.trim()) {
       const parsed = parseQueryConditions(rawQuery.trim());
-      similar.reset(); entityMatches.reset(); setSimilarReference(null); setSegmentFocus(null);
+      similar.reset(); entityMatches.reset(); setSimilarReference(null); setSegmentFocus(null); setSelectedAssetIds(new Set());
       const request = { ...(acgPack.data ? applyAcgCreatorPack(parsed) : parsed), media_types: mediaTypes, min_quality_score: minQuality };
       setConditions(request);
       search.mutate(request);
@@ -38,11 +40,11 @@ export default function Search() {
   const submit = (event: React.FormEvent) => { event.preventDefault(); runQuery(query); };
   const chooseReferenceImage = async () => {
     const path = await open({ multiple: false, filters: [{ name: '图片', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'] }] });
-    if (typeof path === 'string') { setSimilarReference(path); search.reset(); similar.reset(); entityMatches.reset(); setSegmentFocus(null); referenceImage.mutate(path); }
+    if (typeof path === 'string') { setSimilarReference(path); search.reset(); similar.reset(); entityMatches.reset(); setSegmentFocus(null); setSelectedAssetIds(new Set()); referenceImage.mutate(path); }
   };
   const searchEntity = () => {
     if (!entityId) return;
-    search.reset(); similar.reset(); referenceImage.reset(); setSimilarReference(null); setSegmentFocus(null);
+    search.reset(); similar.reset(); referenceImage.reset(); setSimilarReference(null); setSegmentFocus(null); setSelectedAssetIds(new Set());
     entityMatches.mutate(entityId);
   };
   const keywordAssets = search.data?.map((result) => result.asset) ?? [];
@@ -98,7 +100,9 @@ export default function Search() {
       )}
       {(search.isError || similar.isError || referenceImage.isError || entityMatches.isError) && <p className="mb-4 text-sm text-red-600">搜索失败：{(entityMatches.error ?? referenceImage.error ?? similar.error ?? search.error)?.message}</p>}
       {(search.data || similar.data || referenceImage.data || entityMatches.data) && <p className="mb-4 text-sm text-neutral-500">{entityMatches.data ? '实体匹配结果' : referenceImage.data ? '参考图相似结果' : similarReference ? '视觉相似结果' : '关键词结果'}：{activeAssets.length} 项</p>}
-      {(search.data || similar.data || referenceImage.data || entityMatches.data) && <MediaGrid assets={activeAssets} explanations={referenceImage.data || similar.data || entityMatches.data ? undefined : keywordExplanations} matchingSegments={referenceImage.data || similar.data || entityMatches.data ? undefined : keywordMatchingSegments} onViewSegments={(assetId, matchingSegmentIds) => setSegmentFocus({ assetId, matchingSegmentIds })} onFindSimilar={(assetId) => { setSimilarReference(assetId); referenceImage.reset(); entityMatches.reset(); setSegmentFocus(null); similar.mutate(assetId); }} />}
+      {selectedAssetIds.size > 0 && <div className="mb-3 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm text-brand-800"><span>已选择 {selectedAssetIds.size} 项</span><button onClick={() => batchSelects.mutate([...selectedAssetIds])} disabled={batchSelects.isPending} className="rounded bg-brand-600 px-3 py-1 text-white disabled:opacity-50">{batchSelects.isPending ? '加入中…' : '批量加入选片'}</button><button onClick={() => setSelectedAssetIds(new Set())} className="rounded border px-3 py-1">取消选择</button></div>}
+      {batchSelects.isError && <p className="mb-3 text-sm text-red-600">批量加入选片失败：{batchSelects.error.message}</p>}
+      {(search.data || similar.data || referenceImage.data || entityMatches.data) && <MediaGrid assets={activeAssets} explanations={referenceImage.data || similar.data || entityMatches.data ? undefined : keywordExplanations} matchingSegments={referenceImage.data || similar.data || entityMatches.data ? undefined : keywordMatchingSegments} selectedAssetIds={selectedAssetIds} onToggleSelection={(assetId) => setSelectedAssetIds((current) => { const next = new Set(current); if (next.has(assetId)) next.delete(assetId); else next.add(assetId); return next; })} onViewSegments={(assetId, matchingSegmentIds) => setSegmentFocus({ assetId, matchingSegmentIds })} onFindSimilar={(assetId) => { setSimilarReference(assetId); referenceImage.reset(); entityMatches.reset(); setSegmentFocus(null); similar.mutate(assetId); }} />}
       {segmentFocus && <SegmentPanel assetId={segmentFocus.assetId} matchingSegmentIds={segmentFocus.matchingSegmentIds} onClose={() => setSegmentFocus(null)} />}
     </div>
   );

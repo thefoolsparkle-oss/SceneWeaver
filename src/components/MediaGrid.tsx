@@ -11,9 +11,11 @@ interface MediaGridProps {
   onEntityFeedback?: (assetId: string, isPositive: boolean) => void;
   explanations?: Record<string, { reasons: string[]; unmet: string[] }>;
   matchingSegments?: Record<string, string[]>;
+  selectedAssetIds?: Set<string>;
+  onToggleSelection?: (assetId: string) => void;
 }
 
-export function MediaGrid({ assets, onViewSegments, onFindSimilar, onEntityFeedback, explanations, matchingSegments }: MediaGridProps) {
+export function MediaGrid({ assets, onViewSegments, onFindSimilar, onEntityFeedback, explanations, matchingSegments, selectedAssetIds, onToggleSelection }: MediaGridProps) {
   const favorites = useQuery({ queryKey: ['favorites'], queryFn: favoriteAssetIds });
   if (assets.length === 0) {
     return (
@@ -26,13 +28,13 @@ export function MediaGrid({ assets, onViewSegments, onFindSimilar, onEntityFeedb
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
       {assets.map((asset) => (
-        <MediaCard key={asset.id} asset={asset} isFavorite={favorites.data?.includes(asset.id) ?? false} onViewSegments={onViewSegments} onFindSimilar={onFindSimilar} onEntityFeedback={onEntityFeedback} explanation={explanations?.[asset.id]} matchingSegmentIds={matchingSegments?.[asset.id]} />
+        <MediaCard key={asset.id} asset={asset} isFavorite={favorites.data?.includes(asset.id) ?? false} onViewSegments={onViewSegments} onFindSimilar={onFindSimilar} onEntityFeedback={onEntityFeedback} explanation={explanations?.[asset.id]} matchingSegmentIds={matchingSegments?.[asset.id]} batchSelected={selectedAssetIds?.has(asset.id) ?? false} onToggleSelection={onToggleSelection} />
       ))}
     </div>
   );
 }
 
-function MediaCard({ asset, isFavorite, onViewSegments, onFindSimilar, onEntityFeedback, explanation, matchingSegmentIds }: { asset: Asset; isFavorite: boolean; onViewSegments?: (assetId: string, matchingSegmentIds?: string[]) => void; onFindSimilar?: (assetId: string) => void; onEntityFeedback?: (assetId: string, isPositive: boolean) => void; explanation?: { reasons: string[]; unmet: string[] }; matchingSegmentIds?: string[] }) {
+function MediaCard({ asset, isFavorite, onViewSegments, onFindSimilar, onEntityFeedback, explanation, matchingSegmentIds, batchSelected, onToggleSelection }: { asset: Asset; isFavorite: boolean; onViewSegments?: (assetId: string, matchingSegmentIds?: string[]) => void; onFindSimilar?: (assetId: string) => void; onEntityFeedback?: (assetId: string, isPositive: boolean) => void; explanation?: { reasons: string[]; unmet: string[] }; matchingSegmentIds?: string[]; batchSelected: boolean; onToggleSelection?: (assetId: string) => void }) {
   const [isDetecting, setIsDetecting] = useState(false);
   const [segmentCount, setSegmentCount] = useState<number | null>(null);
   const [detectionError, setDetectionError] = useState<string | null>(null);
@@ -84,6 +86,7 @@ function MediaCard({ asset, isFavorite, onViewSegments, onFindSimilar, onEntityF
   };
   return (
     <div className="group relative overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
+      {onToggleSelection && <label className="absolute left-2 top-2 z-10 rounded bg-white/90 px-1.5 py-1 text-xs shadow dark:bg-neutral-950/90"><input type="checkbox" checked={batchSelected} onChange={() => onToggleSelection(asset.id)} /> <span className="sr-only">选择素材</span></label>}
       <div className="flex aspect-video items-center justify-center bg-neutral-100 dark:bg-neutral-900">
         {asset.thumbnail_data_url ? (
           <img

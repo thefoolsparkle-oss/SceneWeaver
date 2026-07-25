@@ -877,6 +877,23 @@ impl Database {
         Self::add_asset_to_select_collection_conn(&conn, &collection_id, asset_id)
     }
 
+    pub fn add_assets_to_default_selects(&self, asset_ids: &[String]) -> AppResult<usize> {
+        let conn = self.open()?;
+        let collection_id = Self::default_select_collection_id(&conn)?;
+        let mut added = 0;
+        for asset_id in asset_ids {
+            let exists: Option<i64> = conn.query_row(
+                "SELECT 1 FROM selects_items WHERE collection_id = ?1 AND asset_id = ?2 AND segment_id IS NULL",
+                params![collection_id, asset_id], |row| row.get(0),
+            ).optional()?;
+            if exists.is_none() {
+                Self::add_asset_to_select_collection_conn(&conn, &collection_id, asset_id)?;
+                added += 1;
+            }
+        }
+        Ok(added)
+    }
+
     pub fn add_segment_to_default_selects(
         &self,
         asset_id: &str,

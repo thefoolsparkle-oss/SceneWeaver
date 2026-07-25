@@ -584,6 +584,17 @@ pub async fn add_to_default_selects(state: State<'_, AppState>, asset_id: String
 }
 
 #[tauri::command]
+pub async fn add_assets_to_default_selects(
+    state: State<'_, AppState>,
+    asset_ids: Vec<String>,
+) -> AppResult<usize> {
+    if asset_ids.is_empty() {
+        return Ok(0);
+    }
+    state.db.add_assets_to_default_selects(&asset_ids)
+}
+
+#[tauri::command]
 pub async fn default_select_assets(state: State<'_, AppState>) -> AppResult<Vec<Asset>> {
     let mut assets = state.db.default_select_assets()?;
     attach_thumbnail_data(&state, &mut assets);

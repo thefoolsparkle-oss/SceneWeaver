@@ -74,6 +74,8 @@ export const favoriteAssetIds = (): Promise<string[]> => invoke('favorite_asset_
 
 export const addToDefaultSelects = (assetId: string): Promise<void> =>
   invoke('add_to_default_selects', { assetId });
+export const addAssetsToDefaultSelects = (assetIds: string[]): Promise<number> =>
+  invoke('add_assets_to_default_selects', { assetIds });
 
 export const addSegmentToDefaultSelects = (assetId: string, segmentId: string): Promise<void> =>
   invoke('add_segment_to_default_selects', { assetId, segmentId });

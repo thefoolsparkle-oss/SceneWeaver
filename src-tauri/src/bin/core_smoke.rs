@@ -502,6 +502,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?
         .is_empty());
     db.add_to_default_selects(&primary_asset.id)?;
+    assert_eq!(
+        db.add_assets_to_default_selects(&[primary_asset.id.clone()])?,
+        0
+    );
     let selects = db.default_select_assets()?;
     assert_eq!(selects.len(), 1);
     let csv_path = root.join("selects.csv");
