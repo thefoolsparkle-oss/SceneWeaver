@@ -260,6 +260,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "timed-out probe must be terminated rather than continue in background"
     );
 
+    // Keep the 1,000-file acceptance path isolated from the feature smoke below:
+    // it proves both first indexing and the following incremental no-op scan without
+    // changing any of the later asset-count assertions.
+    let batch_root = root.join("batch scan library");
+    std::fs::create_dir_all(&batch_root)?;
+    for index in 0..1_000_u16 {
+        let color = (index % 256) as u8;
+        image::RgbImage::from_pixel(2, 2, image::Rgb([color, 255 - color, color / 2]))
+            .save(batch_root.join(format!("asset-{index:04}.png")))?;
+    }
+    let batch_library = Library {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: "1,000 file scan smoke".to_string(),
+        root_path: batch_root.to_string_lossy().to_string(),
+        status: LibraryStatus::Idle,
+        index_profile: IndexProfile::Quick,
+        include_patterns: vec!["**/*".to_string()],
+        exclude_patterns: vec![],
+        watch_enabled: false,
+        last_scan_at: None,
+        created_at: now,
+        updated_at: now,
+    };
+    db.create_library(&batch_library)?;
+    let first_batch_scan = scanner.scan_library(&batch_library, &control, &progress)?;
+    assert_eq!(first_batch_scan.changed, 1_000);
+    assert_eq!(db.list_assets(&batch_library.id)?.len(), 1_000);
+    let second_batch_scan = scanner.scan_library(&batch_library, &control, &progress)?;
+    assert_eq!(second_batch_scan.unchanged, 1_000);
+    assert_eq!(second_batch_scan.changed, 0);
+
     let mut long_path_dir = media_root.clone();
     for index in 0..8 {
         long_path_dir.push(format!("超长路径-{index:02}-abcdefghijklmnopqrstuvwxyz"));
@@ -1003,7 +1034,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     std::fs::remove_dir_all(&root)?;
     println!(
-        "core smoke passed: Chinese + spaced path, long/corrupt media resilience, thumbnail, multi-provider visual index, bundled semantic runtime, incremental scan, offline detection, selects exports, segment selects and optional FFmpeg video derivatives"
+        "core smoke passed: 1,000-file first/incremental scan, Chinese + spaced path, long/corrupt media resilience, thumbnail, multi-provider visual index, bundled semantic runtime, offline detection, selects exports, segment selects and optional FFmpeg video derivatives"
     );
     Ok(())
 }

@@ -97,6 +97,8 @@ cargo test --manifest-path src-tauri/Cargo.toml
 cargo run --manifest-path src-tauri/Cargo.toml --bin core_smoke
 ```
 
+该 smoke 在系统临时目录创建独立的 1,000 图片素材库，验证首次完整入库以及随后一次零变化增量扫描；测试结束后会清理所有测试数据，不读取或上传用户媒体。
+
 ## 打包
 
 ```powershell
