@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="background" x1="120" y1="80" x2="904" y2="944" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#172554"/>
+      <stop offset="0.52" stop-color="#1D4ED8"/>
+      <stop offset="1" stop-color="#0F766E"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="208" y1="320" x2="816" y2="704" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E0F2FE"/>
+      <stop offset="1" stop-color="#99F6E4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="220" fill="url(#background)"/>
+  <rect x="128" y="176" width="768" height="672" rx="104" fill="#071633" fill-opacity="0.42" stroke="#BFDBFE" stroke-opacity="0.42" stroke-width="24"/>
+  <path d="M250 397C336 322 422 322 512 397C602 472 688 472 774 397" fill="none" stroke="url(#ribbon)" stroke-linecap="round" stroke-width="72"/>
+  <path d="M250 580C336 505 422 505 512 580C602 655 688 655 774 580" fill="none" stroke="url(#ribbon)" stroke-linecap="round" stroke-width="72"/>
+  <circle cx="512" cy="490" r="114" fill="#F8FAFC"/>
+  <path d="M472 426L602 490L472 554Z" fill="#1D4ED8"/>
+  <circle cx="226" cy="256" r="34" fill="#FDE68A"/>
+  <circle cx="798" cy="768" r="34" fill="#A7F3D0"/>
+</svg>

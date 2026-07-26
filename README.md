@@ -111,7 +111,7 @@ cargo run --manifest-path src-tauri/Cargo.toml --bin core_smoke
 npm.cmd run tauri build
 ```
 
-2026-07-26 已对当前命令生成的 NSIS 安装器完成隔离静默安装 smoke：安装器退出码为 0，`sceneweaver.exe`、`WebView2Loader.dll` 与 `onnxruntime.dll` 均在安装目录同级，应用隐藏启动后存活超过 8 秒。该检查没有下载或使用 Edge。请使用安装器内的 EXE，而不是从构建目录单独复制 EXE。
+2026-07-26 已将版本控制的 `src-tauri/icons/sceneweaver.svg` 生成多分辨率 Windows `icon.ico`，并对带新图标的当前 NSIS 安装器完成隔离静默安装 smoke：安装器退出码为 0，`sceneweaver.exe`、`WebView2Loader.dll` 与 `onnxruntime.dll` 均在安装目录同级，应用隐藏启动后存活超过 8 秒。该检查没有下载或使用 Edge。请使用安装器内的 EXE，而不是从构建目录单独复制 EXE。
 
 ## 许可证
 

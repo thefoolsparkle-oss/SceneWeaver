@@ -29,6 +29,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi"],
+    "icon": ["icons/icon.ico"],
     "resources": {
       "target/release/WebView2Loader.dll": "WebView2Loader.dll",
       "vendor/onnxruntime/onnxruntime.dll": "onnxruntime.dll"

@@ -1,5 +1,10 @@
 # SceneWeaver 实施进度
 
+## 2026-07-26：Windows 发布图标与安装器复验
+
+- 用可审计的 `src-tauri/icons/sceneweaver.svg` 生成多分辨率 Windows `icon.ico`，替换旧的 70-byte 占位图标；Tauri 配置已显式使用该 ICO。
+- 带新图标的当前 NSIS 安装器已完成隔离静默安装与 8 秒启动 smoke：退出码 0，EXE（58,777,785 bytes）、`WebView2Loader.dll` 与 `onnxruntime.dll` 均同级；专用测试目录已清理。
+
 ## 2026-07-26：当前 NSIS 安装包复验
 
 - 已用当前代码重新生成 `SceneWeaver_0.1.0_x64-setup.exe`，并静默安装到专用临时目录：安装器退出码为 0，`sceneweaver.exe`（58,726,850 bytes）、`WebView2Loader.dll`（160,320 bytes）和 `onnxruntime.dll`（14,897,976 bytes）均同级。
@@ -298,7 +303,7 @@ ACG 查询预设已接入搜索页（角色近景、雨夜侧脸、战斗无 UI/
 - 基于视觉/元数据的 Must / Must Not 与多路融合排序。
 - Entity 置信度、通用语义实体匹配与完整 ACG Creator Pack。
 - 专业剪辑软件导入验证。
-- MSI、交互式安装/卸载/升级验证与正式图标资源完善。
+- MSI、交互式安装/卸载/升级验证。
 
 ## 测试结果
 
@@ -332,7 +337,7 @@ ACG 查询预设已接入搜索页（角色近景、雨夜侧脸、战斗无 UI/
 - 开发环境使用 MinGW-w64 而非 MSVC；已通过 linker flag 解决 DLL 导出符号过多问题，后续 Windows 原生 API 兼容性需持续验证。
 - FFmpeg / ffprobe 未打包，当前为可选外部依赖；未检测到时跳过媒体探测与视频缩略图。
 - GNU 构建命令需要将 `C:\msys64\mingw64\bin` 加入当前 shell 的 `PATH`，以提供 `gcc` 与 `windres`。
-- 图标资源为临时 1x1 ICO，正式发布前需替换为真实图标。
+- Windows 发布图标已替换为由版本控制 SVG 源生成的多分辨率 ICO；应用商店品牌资源与交互式安装视觉检查仍待完成。
 - 尚未验证真实扫描、完整暂停恢复交互与崩溃恢复；中文/空格路径已由 `core_smoke` 验证。
 
 ## 下一轮任务
