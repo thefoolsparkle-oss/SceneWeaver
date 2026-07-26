@@ -207,6 +207,7 @@ CI 必须从干净工作目录通过：`build.rs` 会在 Tauri 读取 `bundle.re
 ## E2E 测试
 
 - 当前 jsdom 测试不替代 Tauri 桌面 E2E；仍需在打包应用中完成素材库创建、扫描、搜索、片段选片与导出交互验证。
+- 当前 GNU 环境无法编译官方 `tauri-driver`（缺少 `ktmw32`）；桌面 WebDriver E2E 应在完整 MSVC 或补齐 MinGW 库的 Windows 环境执行。
 
 - 首次启动
 - 创建素材库

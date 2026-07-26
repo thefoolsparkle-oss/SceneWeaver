@@ -261,6 +261,7 @@ ACG 查询预设已接入搜索页（角色近景、雨夜侧脸、战斗无 UI/
 - 前端：`npm.cmd run lint` 通过；`npm.cmd test` 通过（17 tests，含 4 项 jsdom 搜索与任务页交互测试）；`npm.cmd run build` 通过。
 - Rust：新增路径、指纹、帧率、任务控制、导出、选片标注、视频派生参数单元测试；本轮在补齐 MSYS2 MinGW-w64 的 `windres` 与 `gcc` 后，`cargo test --no-run` 已成功编译；测试二进制运行仍受 GNU/Tauri Windows `STATUS_ENTRYPOINT_NOT_FOUND` 阻塞。
 - 已有前端 jsdom 交互测试；真实 Tauri 桌面集成与 E2E 测试尚未完成。
+- 2026-07-26 已尝试通过官方 `tauri-driver` 建立 Windows WebDriver E2E；GNU 工具链在驱动链接时缺少 `ktmw32`，因此该路径待完整 MSVC 或补齐 MinGW 库后继续，未将 jsdom 测试误报为桌面 E2E。
 - 已新增 GitHub Actions Windows 质量门禁：在 `main` 推送、PR 和手动触发时执行前端 lint/test/build、Rust 格式/测试编译和不下载模型的 `core_smoke`。首次 MSVC 远端运行已实际发现干净工作目录缺少 `target/release/WebView2Loader.dll` 的构建资源缺陷；现由 `build.rs` 从锁定的 `webview2-com-sys` 依赖暂存 DLL，2026-07-19 的干净 Windows 复验已成功通过 Rust 编译与 core smoke。
 
 ## 构建结果
