@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +28,19 @@ async function waitForUrl(url, label) {
     await delay(250);
   }
   throw new Error(`${label} did not start: ${lastError}`);
+}
+
+async function readTextFileWhenReady(filePath, label) {
+  let lastError = 'file was not created';
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      return await readFile(filePath, 'utf8');
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+    await delay(100);
+  }
+  throw new Error(`${label} was not written: ${lastError}`);
 }
 
 const vite = spawn(process.execPath, [path.join(root, 'node_modules', 'vite', 'bin', 'vite.js'), '--host', '127.0.0.1', '--port', '1420', '--strictPort'], {
@@ -135,7 +148,14 @@ try {
   await browser.pause(250);
   const selectsText = await (await browser.$('body')).getText();
   assert.ok(selectsText.includes('fixture.mp4'), `custom segment card missing from Selects:\n${selectsText}`);
-  console.log('desktop e2e passed: application launch, search navigation, custom Selects persistence, and custom segment selects');
+  const exportPath = path.join(appDataDir, 'e2e-custom-segment.csv');
+  await browser.execute((value) => { window.__SCENEWEAVER_E2E_EXPORT_PATH__ = value; }, exportPath);
+  await (await browser.$('[data-testid="export-csv"]')).click();
+  const csv = await readTextFileWhenReady(exportPath, 'custom segment CSV export');
+  assert.ok(csv.includes('fixture.mp4'), `CSV export omitted fixture media:\n${csv}`);
+  assert.ok(csv.includes('00:00:01.000'), `CSV export omitted the segment in point:\n${csv}`);
+  await browser.execute(() => { delete window.__SCENEWEAVER_E2E_EXPORT_PATH__; });
+  console.log('desktop e2e passed: application launch, search navigation, custom Selects persistence, custom segment selects, and CSV export');
 } finally {
   await browser?.deleteSession().catch(() => undefined);
   app?.kill();

@@ -13,6 +13,7 @@ import type { SelectItem } from '@/types';
 
 const defaultCollectionName = '我的选片';
 type ExportFormat = 'csv' | 'json' | 'edl' | 'fcpxml' | 'png' | 'html';
+type ViteImportMeta = ImportMeta & { env?: { DEV?: boolean } };
 
 export default function Selects() {
   const queryClient = useQueryClient();
@@ -64,7 +65,12 @@ export default function Selects() {
 
   const exportFile = async (format: ExportFormat) => {
     if (!activeCollection) return;
-    const path = await save({ defaultPath: `sceneweaver-selects.${format}`, filters: [{ name: format.toUpperCase(), extensions: [format] }] });
+    const e2eExportPath = (import.meta as ViteImportMeta).env?.DEV
+      ? (window as Window & { __SCENEWEAVER_E2E_EXPORT_PATH__?: string }).__SCENEWEAVER_E2E_EXPORT_PATH__
+      : undefined;
+    const path = e2eExportPath?.toLowerCase().endsWith(`.${format}`)
+      ? e2eExportPath
+      : await save({ defaultPath: `sceneweaver-selects.${format}`, filters: [{ name: format.toUpperCase(), extensions: [format] }] });
     if (!path) return;
     try {
       if (format === 'png') {
@@ -168,4 +174,4 @@ function SelectItemCard({ item, index, total, collections, currentCollectionId, 
   </article>;
 }
 
-function ExportButton({ label, onClick, disabled }: { label: string; onClick: () => void; disabled: boolean }) { return <button onClick={onClick} disabled={disabled} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50">导出 {label}</button>; }
+function ExportButton({ label, onClick, disabled }: { label: string; onClick: () => void; disabled: boolean }) { return <button data-testid={`export-${label.toLowerCase()}`} onClick={onClick} disabled={disabled} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50">导出 {label}</button>; }

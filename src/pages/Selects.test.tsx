@@ -38,7 +38,10 @@ function renderSelects() {
   return render(<QueryClientProvider client={client}><Selects /></QueryClientProvider>);
 }
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => {
+  delete (window as Window & { __SCENEWEAVER_E2E_EXPORT_PATH__?: string }).__SCENEWEAVER_E2E_EXPORT_PATH__;
+  cleanup(); vi.clearAllMocks();
+});
 
 describe('Selects page interactions', () => {
   it('exports a custom collection and persists its explicit order', async () => {
@@ -55,6 +58,19 @@ describe('Selects page interactions', () => {
 
     await user.click(screen.getAllByRole('button', { name: '下移' })[0]);
     await waitFor(() => expect(reorderSelectItem).toHaveBeenCalledWith('first', 1));
+  });
+
+  it('uses the development-only E2E export path when its extension matches', async () => {
+    listSelectCollections.mockResolvedValue([collection]);
+    listSelectItems.mockResolvedValue([item('first', 0)]);
+    exportSelectCollectionCsv.mockResolvedValue(undefined);
+    (window as Window & { __SCENEWEAVER_E2E_EXPORT_PATH__?: string }).__SCENEWEAVER_E2E_EXPORT_PATH__ = 'C:\\exports\\desktop-e2e.csv';
+    const user = userEvent.setup();
+    renderSelects();
+
+    await user.click(await screen.findByTestId('export-csv'));
+    await waitFor(() => expect(exportSelectCollectionCsv).toHaveBeenCalledWith('custom-1', 'C:\\exports\\desktop-e2e.csv'));
+    expect(save).not.toHaveBeenCalled();
   });
 
   it('converts recommended in/out points from seconds to milliseconds', async () => {
