@@ -15,6 +15,17 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function runProcess(command, args, label) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: 'ignore', windowsHide: true });
+    child.once('error', (error) => reject(new Error(`${label} did not start: ${error.message}`)));
+    child.once('exit', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`${label} exited with ${code}`));
+    });
+  });
+}
+
 async function waitForUrl(url, label) {
   let lastError = 'no response';
   for (let attempt = 0; attempt < 60; attempt += 1) {
@@ -93,6 +104,9 @@ const appDataDir = await mkdtemp(path.join(tmpdir(), 'sceneweaver-e2e-'));
 const mediaFixtureDir = path.join(appDataDir, 'media-fixture');
 const mediaFixturePath = path.join(mediaFixtureDir, 'scan-fixture.png');
 const pauseFixtureDir = path.join(appDataDir, 'pause-fixture');
+const ffmpegPath = process.env.SCENEWEAVER_E2E_FFMPEG_BIN;
+const videoFixtureDir = path.join(appDataDir, 'video-fixture');
+const videoFixturePath = path.join(videoFixtureDir, 'e2e-video.mp4');
 await mkdir(mediaFixtureDir, { recursive: true });
 await writeFile(mediaFixturePath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl7dksAAAAASUVORK5CYII=', 'base64'));
 await mkdir(pauseFixtureDir, { recursive: true });
@@ -100,6 +114,15 @@ await Promise.all(Array.from({ length: 200 }, (_, index) => writeFile(
   path.join(pauseFixtureDir, `pause-fixture-${String(index).padStart(3, '0')}.png`),
   Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl7dksAAAAASUVORK5CYII=', 'base64'),
 )));
+if (ffmpegPath) {
+  await mkdir(videoFixtureDir, { recursive: true });
+  await runProcess(ffmpegPath, [
+    '-f', 'lavfi', '-i', 'color=c=red:s=64x48:d=1',
+    '-f', 'lavfi', '-i', 'color=c=blue:s=64x48:d=1',
+    '-filter_complex', '[0:v][1:v]concat=n=2:v=1:a=0',
+    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-y', videoFixturePath,
+  ], 'E2E FFmpeg video fixture');
+}
 
 async function invoke(command, args = {}) {
   const result = await browser.executeAsync((name, input, done) => {
@@ -123,6 +146,7 @@ try {
     cwd: root,
     env: {
       ...process.env,
+      ...(ffmpegPath ? { Path: `${path.dirname(ffmpegPath)};${process.env.Path ?? ''}` } : {}),
       SCENEWEAVER_E2E_DATA_DIR: appDataDir,
       TAURI_WEBDRIVER_PORT: String(port),
     },
@@ -178,6 +202,26 @@ try {
   const pausedAssets = await invoke('list_assets', { libraryId: pausableLibrary.id });
   assert.equal(pausedAssets.length, 200, `pause/resume scan indexed ${pausedAssets.length} assets instead of 200`);
 
+  if (ffmpegPath) {
+    const videoLibrary = await invoke('create_library', {
+      req: { name: 'E2E 视频扫描素材库', root_path: videoFixtureDir, index_profile: 'quick' },
+    });
+    await (await browser.$('[data-testid="nav-libraries"]')).click();
+    await browser.refresh();
+    const videoScanButton = await browser.$(`[data-testid="scan-library-${videoLibrary.id}"]`);
+    await videoScanButton.waitForDisplayed();
+    await videoScanButton.click();
+    await waitForCompletedScan(videoLibrary.id);
+    const videoAssets = await invoke('list_assets', { libraryId: videoLibrary.id });
+    assert.equal(videoAssets.length, 1, `video scan indexed ${videoAssets.length} assets instead of one`);
+    assert.equal(videoAssets[0].media_type, 'video');
+    assert.ok(videoAssets[0].duration_ms > 0, `video duration missing: ${JSON.stringify(videoAssets[0])}`);
+    const videoSegments = await invoke('list_segments', { assetId: videoAssets[0].id });
+    assert.ok(videoSegments.length > 0, 'video scan did not create any scene segments');
+  } else {
+    console.log('desktop e2e video scan skipped: set SCENEWEAVER_E2E_FFMPEG_BIN to a local ffmpeg executable to enable it');
+  }
+
   await (await browser.$('[data-testid="nav-search"]')).click();
   const heading = await browser.$('[data-testid="search-heading"]');
   await heading.waitForDisplayed();
@@ -232,7 +276,7 @@ try {
   assert.ok(csv.includes('fixture.mp4'), `CSV export omitted fixture media:\n${csv}`);
   assert.ok(csv.includes('00:00:01.000'), `CSV export omitted the segment in point:\n${csv}`);
   await browser.execute(() => { delete window.__SCENEWEAVER_E2E_EXPORT_PATH__; });
-  console.log('desktop e2e passed: application launch, real PNG library scan, pause/resume scan workflow, search navigation, custom Selects persistence, custom segment selects, and CSV export');
+  console.log(`desktop e2e passed: application launch, real PNG library scan, pause/resume scan workflow${ffmpegPath ? ', real video scan' : ''}, search navigation, custom Selects persistence, custom segment selects, and CSV export`);
 } finally {
   await browser?.deleteSession().catch(() => undefined);
   app?.kill();

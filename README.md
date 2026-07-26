@@ -95,6 +95,8 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 桌面壳层另有 `npm.cmd run test:e2e`：它构建前端、自动补齐本项目 GNU 工具链所需的 MinGW 路径，以 `webdriver-e2e` feature 启动临时 debug SceneWeaver，启动本地 Vite 后直接连接应用内嵌 WebDriver，验证真实窗口标题、首页渲染、从隔离临时 PNG 创建素材库并触发真实扫描、在详情页回读入库资产、由真实任务中心暂停并恢复 200 个 PNG 的扫描后确认全部入库、进入搜索页的导航、创建自定义选片集合后的 SQLite 持久化、从素材库镜头面板将片段加入自定义集合并在 Selects 中回读，以及从该集合点击 CSV 导出后读取实际写入的文件名与片段入点。仅该测试 feature 识别 `SCENEWEAVER_E2E_DATA_DIR`；每次运行创建并清理独立临时应用数据目录，不触碰用户数据库。E2E 为避开保存对话框而使用的临时导出路径仅存在于开发构建，production 构建不包含它；该链路不下载或使用 Edge/Chrome Driver，测试 feature 与测试夹具不会进入 release/NSIS 安装包。
 
+如已自行安装 FFmpeg，可在运行 E2E 前显式设置 `SCENEWEAVER_E2E_FFMPEG_BIN` 为本机 `ffmpeg.exe` 的完整路径；同一测试会额外生成隔离 MP4，验证视频扫描、时长和镜头片段。未设置时只跳过这项可选检查，不会下载或安装 FFmpeg。
+
 如需运行不依赖窗口的真实核心集成验证（会在系统临时目录创建并清理测试图片），执行：
 
 ```powershell
