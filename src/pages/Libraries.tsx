@@ -195,6 +195,7 @@ function LibraryCard({
       </p>
       <div className="flex flex-wrap gap-2">
         <button
+          data-testid={`scan-library-${library.id}`}
           onClick={onScan}
           disabled={isScanning || library.status === 'scanning'}
           className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
@@ -210,6 +211,7 @@ function LibraryCard({
           {isReconnecting ? '重新连接中…' : '重新连接'}
         </button>
         <Link
+          data-testid={`open-library-${library.id}`}
           to={`/libraries/${library.id}`}
           className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
         >

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +43,23 @@ async function readTextFileWhenReady(filePath, label) {
   throw new Error(`${label} was not written: ${lastError}`);
 }
 
+async function waitForCompletedScan(libraryId) {
+  let lastStatus = 'no scan job found';
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const jobs = await invoke('list_jobs');
+    const job = jobs.find((candidate) => candidate.library_id === libraryId && candidate.job_type === 'scan');
+    if (job) {
+      lastStatus = job.status;
+      if (job.status === 'completed') return job;
+      if (job.status === 'failed' || job.status === 'cancelled') {
+        throw new Error(`fixture scan ${job.status}: ${job.error_message ?? 'no error message'}`);
+      }
+    }
+    await delay(100);
+  }
+  throw new Error(`fixture scan did not complete: ${lastStatus}`);
+}
+
 const vite = spawn(process.execPath, [path.join(root, 'node_modules', 'vite', 'bin', 'vite.js'), '--host', '127.0.0.1', '--port', '1420', '--strictPort'], {
   cwd: root,
   stdio: 'pipe',
@@ -56,6 +73,10 @@ let app;
 let appOutput = '';
 let browser;
 const appDataDir = await mkdtemp(path.join(tmpdir(), 'sceneweaver-e2e-'));
+const mediaFixtureDir = path.join(appDataDir, 'media-fixture');
+const mediaFixturePath = path.join(mediaFixtureDir, 'scan-fixture.png');
+await mkdir(mediaFixtureDir, { recursive: true });
+await writeFile(mediaFixturePath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl7dksAAAAASUVORK5CYII=', 'base64'));
 
 async function invoke(command, args = {}) {
   const result = await browser.executeAsync((name, input, done) => {
@@ -100,6 +121,18 @@ try {
   const appName = await browser.$('[data-testid="app-name"]');
   await appName.waitForDisplayed({ timeout: 15_000 });
   assert.equal(await browser.getTitle(), 'SceneWeaver');
+
+  const scannedLibrary = await invoke('create_library', {
+    req: { name: 'E2E 扫描素材库', root_path: mediaFixtureDir, index_profile: 'quick' },
+  });
+  await (await browser.$('[data-testid="nav-libraries"]')).click();
+  const scanButton = await browser.$(`[data-testid="scan-library-${scannedLibrary.id}"]`);
+  await scanButton.waitForDisplayed();
+  await scanButton.click();
+  await waitForCompletedScan(scannedLibrary.id);
+  await (await browser.$(`[data-testid="open-library-${scannedLibrary.id}"]`)).click();
+  const scannedLibraryText = await (await browser.$('body')).getText();
+  assert.ok(scannedLibraryText.includes('scan-fixture.png'), `scanned fixture asset missing from library detail:\n${scannedLibraryText}`);
 
   await (await browser.$('[data-testid="nav-search"]')).click();
   const heading = await browser.$('[data-testid="search-heading"]');
@@ -155,7 +188,7 @@ try {
   assert.ok(csv.includes('fixture.mp4'), `CSV export omitted fixture media:\n${csv}`);
   assert.ok(csv.includes('00:00:01.000'), `CSV export omitted the segment in point:\n${csv}`);
   await browser.execute(() => { delete window.__SCENEWEAVER_E2E_EXPORT_PATH__; });
-  console.log('desktop e2e passed: application launch, search navigation, custom Selects persistence, custom segment selects, and CSV export');
+  console.log('desktop e2e passed: application launch, real PNG library scan, search navigation, custom Selects persistence, custom segment selects, and CSV export');
 } finally {
   await browser?.deleteSession().catch(() => undefined);
   app?.kill();
