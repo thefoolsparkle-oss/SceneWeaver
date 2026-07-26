@@ -1,5 +1,5 @@
 import { addAssetAcgTag, listAssetAcgTags, openAsset, removeAssetAcgTag, revealAssetInFolder, copyAssetRelativePath, copyToClipboard, detectAssetShots, favoriteAssetIds, toggleFavorite as persistFavorite, addToDefaultSelects } from '@/api';
-import { formatBytes, formatDuration } from '@/lib/mediaFormat';
+import { formatAssetDate, formatBytes, formatDuration } from '@/lib/mediaFormat';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Asset } from '@/types';
@@ -110,6 +110,9 @@ function MediaCard({ asset, isFavorite, onViewSegments, onFindSimilar, onEntityF
         </p>
         <p className="text-xs text-neutral-500">
           {formatDuration(asset.duration_ms)} · {formatBytes(asset.size_bytes)}
+        </p>
+        <p className="truncate text-[10px] text-neutral-500" title={formatAssetDate(asset)}>
+          {formatAssetDate(asset)}
         </p>
         {!!tags.data?.length && <div className="mt-1 flex flex-wrap gap-1">{tags.data.map((tag) => <span key={tag} className="inline-flex items-center rounded bg-violet-100 px-1.5 py-0.5 text-[10px] text-violet-700 dark:bg-violet-950 dark:text-violet-300">{tag}<button onClick={() => removeAcgTag(tag)} title={`移除标签：${tag}`} className="ml-1 leading-none">×</button></span>)}</div>}
         {asset.media_type === 'video' && segmentCount !== null && (

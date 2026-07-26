@@ -22,3 +22,18 @@ export function formatBytes(bytes: number): string {
   const index = Math.min(Math.floor(Math.log(bytes) / Math.log(unit)), units.length - 1);
   return `${(bytes / unit ** index).toFixed(1)} ${units[index]}`;
 }
+
+export function assetDateInfo(asset: { capture_time: number | null; modified_at: number }): { timestamp: number; source: '拍摄/创建' | '文件修改' } {
+  if (asset.capture_time !== null) return { timestamp: asset.capture_time, source: '拍摄/创建' };
+  return { timestamp: asset.modified_at, source: '文件修改' };
+}
+
+export function formatAssetDate(asset: { capture_time: number | null; modified_at: number }): string {
+  const { timestamp, source } = assetDateInfo(asset);
+  const formatted = new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(timestamp));
+  return `${source}：${formatted}`;
+}

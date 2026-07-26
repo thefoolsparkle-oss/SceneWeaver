@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatBytes, formatDuration, formatTimecode } from './mediaFormat';
+import { assetDateInfo, formatBytes, formatDuration, formatTimecode } from './mediaFormat';
 
 describe('media formatting', () => {
   it('formats video durations for the media grid', () => {
@@ -16,4 +16,9 @@ describe('media formatting', () => {
 
 it('formats exact timecodes', () => {
   expect(formatTimecode(3_661_234)).toBe('01:01:01.234');
+});
+
+it('uses trusted capture time before a filesystem modification time', () => {
+  expect(assetDateInfo({ capture_time: 2_000, modified_at: 1_000 })).toEqual({ timestamp: 2_000, source: '拍摄/创建' });
+  expect(assetDateInfo({ capture_time: null, modified_at: 1_000 })).toEqual({ timestamp: 1_000, source: '文件修改' });
 });
