@@ -91,7 +91,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 推送到 `main` 或创建 Pull Request 时，[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) 会在 Windows Runner 自动执行前端 lint/test/build、Rust 格式与测试编译，以及不依赖模型下载的 `core_smoke`。2026-07-19 已在干净 Windows Runner 实际通过完整质量门禁；后续结果以 GitHub Actions 页面为准。
 
-前端测试现包含 jsdom 中的真实搜索页交互：提交结构化查询、编辑/移除条件芯片和无效日期范围阻断。测试显式模拟 Tauri IPC，因此覆盖页面行为与请求参数，但不替代安装包内的桌面端到端验证。
+前端测试现包含 jsdom 中的真实搜索页与任务中心交互：提交结构化查询、编辑/移除条件芯片、无效日期范围阻断、暂停/恢复命令，以及扫描进度事件更新。测试显式模拟 Tauri IPC，因此覆盖页面行为与请求参数，但不替代安装包内的桌面端到端验证。
 
 如需运行不依赖窗口的真实核心集成验证（会在系统临时目录创建并清理测试图片），执行：
 

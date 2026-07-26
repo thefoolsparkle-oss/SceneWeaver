@@ -15,10 +15,10 @@
 - `core_smoke` 现会创建独立的 1,000 图片素材库，验证首次扫描完整入库、SQLite 资产数准确，以及紧随其后的增量扫描全部识别为未变化文件。
 - 压力素材与缓存只位于系统临时目录；测试结束即清理，既不读取也不修改用户媒体。
 
-## 2026-07-26：搜索页交互测试基础
+## 2026-07-26：搜索与任务页交互测试基础
 
 - 已接入 `jsdom`、React Testing Library 与 `user-event`，在 Vitest 中实际渲染搜索页并执行用户输入、点击、编辑和移除操作。
-- 新增用例验证结构化查询请求、条件芯片编辑/删除后的重新检索，以及开始日期晚于结束日期时按钮禁用且不发出搜索请求。Tauri IPC 在该层明确模拟，桌面安装包内的完整 GUI E2E 仍待验证。
+- 新增用例验证结构化查询请求、条件芯片编辑/删除后的重新检索，以及开始日期晚于结束日期时按钮禁用且不发出搜索请求；任务页则验证暂停/恢复命令与 `scan:progress` 状态、步骤、计数更新。Tauri IPC 在该层明确模拟，桌面安装包内的完整 GUI E2E 仍待验证。
 
 ## 2026-07-25：实体候选反馈闭环
 
@@ -258,7 +258,7 @@ ACG 查询预设已接入搜索页（角色近景、雨夜侧脸、战斗无 UI/
 - `cargo-tauri.exe` 已安装成功。
 - 前端 `npm run build` 成功。
 - Rust `cargo build` 成功（通过 `--exclude-all-symbols` 解决 GNU 工具链 DLL 导出符号过多问题）。
-- 前端：`npm.cmd run lint` 通过；`npm.cmd test` 通过（15 tests，含 2 项 jsdom 搜索页交互测试）；`npm.cmd run build` 通过。
+- 前端：`npm.cmd run lint` 通过；`npm.cmd test` 通过（17 tests，含 4 项 jsdom 搜索与任务页交互测试）；`npm.cmd run build` 通过。
 - Rust：新增路径、指纹、帧率、任务控制、导出、选片标注、视频派生参数单元测试；本轮在补齐 MSYS2 MinGW-w64 的 `windres` 与 `gcc` 后，`cargo test --no-run` 已成功编译；测试二进制运行仍受 GNU/Tauri Windows `STATUS_ENTRYPOINT_NOT_FOUND` 阻塞。
 - 已有前端 jsdom 交互测试；真实 Tauri 桌面集成与 E2E 测试尚未完成。
 - 已新增 GitHub Actions Windows 质量门禁：在 `main` 推送、PR 和手动触发时执行前端 lint/test/build、Rust 格式/测试编译和不下载模型的 `core_smoke`。首次 MSVC 远端运行已实际发现干净工作目录缺少 `target/release/WebView2Loader.dll` 的构建资源缺陷；现由 `build.rs` 从锁定的 `webview2-com-sys` 依赖暂存 DLL，2026-07-19 的干净 Windows 复验已成功通过 Rust 编译与 core smoke。
