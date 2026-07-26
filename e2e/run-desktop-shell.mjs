@@ -43,13 +43,30 @@ let app;
 let appOutput = '';
 let browser;
 const appDataDir = await mkdtemp(path.join(tmpdir(), 'sceneweaver-e2e-'));
+
+async function invoke(command, args = {}) {
+  const result = await browser.executeAsync((name, input, done) => {
+    const invokeCommand = window.__TAURI_INTERNALS__?.invoke;
+    if (!invokeCommand) {
+      done({ ok: false, message: 'Tauri IPC bridge is unavailable' });
+      return;
+    }
+    invokeCommand(name, input).then(
+      (value) => done({ ok: true, value }),
+      (error) => done({ ok: false, message: String(error) }),
+    );
+  }, command, args);
+  if (!result.ok) throw new Error(`${command} failed: ${result.message}`);
+  return result.value;
+}
+
 try {
   await waitForUrl(devServerUrl, 'Vite development server');
   app = spawn(appBinary, [], {
     cwd: root,
     env: {
       ...process.env,
-      TAURI_DATA_DIR: appDataDir,
+      SCENEWEAVER_E2E_DATA_DIR: appDataDir,
       TAURI_WEBDRIVER_PORT: String(port),
     },
     stdio: 'pipe',
@@ -87,7 +104,38 @@ try {
 
   await browser.refresh();
   await (await browser.$(`button=${collectionName}`)).waitForDisplayed();
-  console.log('desktop e2e passed: application launch, search navigation, and isolated custom Selects persistence');
+
+  const fixture = await invoke('seed_e2e_segment_select_fixture');
+  await (await browser.$('[data-testid="nav-libraries"]')).click();
+  const fixtureLibrary = await browser.$('a=E2E 片段素材库');
+  await fixtureLibrary.waitForDisplayed();
+  await fixtureLibrary.click();
+  await browser.refresh();
+  const viewSegments = await browser.$('[title="查看镜头片段"]');
+  await viewSegments.waitForExist();
+  await browser.execute((element) => element.click(), viewSegments);
+  const targetCollection = await browser.$('[aria-label="加入片段到选片集合"]');
+  await targetCollection.waitForDisplayed();
+  await browser.execute((element, value) => {
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+    valueSetter.call(element, value);
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }, targetCollection, fixture.collection_id);
+  await (await browser.$('button=加入选片')).click();
+  await (await browser.$('button=已加入选片')).waitForDisplayed();
+  const fixtureItems = await invoke('list_select_items', { collectionId: fixture.collection_id });
+  assert.equal(fixtureItems.length, 1, `fixture segment was not persisted: ${JSON.stringify(fixtureItems)}`);
+  assert.equal(fixtureItems[0].segment_id, fixture.segment_id);
+
+  await (await browser.$('[data-testid="nav-selects"]')).click();
+  await browser.refresh();
+  const fixtureCollection = await browser.$('button=E2E 片段集合');
+  await fixtureCollection.waitForDisplayed();
+  await fixtureCollection.click();
+  await browser.pause(250);
+  const selectsText = await (await browser.$('body')).getText();
+  assert.ok(selectsText.includes('fixture.mp4'), `custom segment card missing from Selects:\n${selectsText}`);
+  console.log('desktop e2e passed: application launch, search navigation, custom Selects persistence, and custom segment selects');
 } finally {
   await browser?.deleteSession().catch(() => undefined);
   app?.kill();

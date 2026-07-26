@@ -1,4 +1,6 @@
 use std::path::Path;
+#[cfg(feature = "webdriver-e2e")]
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use tauri::Manager;
@@ -41,10 +43,18 @@ impl AppState {
 }
 
 pub fn setup_app_state(app: &mut tauri::App) -> AppResult<()> {
-    let app_data_dir = app
+    let default_app_data_dir = app
         .path()
         .app_data_dir()
         .map_err(|e| crate::core::error::AppError::Other(format!("获取数据目录失败: {}", e)))?;
+    // The override is compiled only into the explicit desktop E2E binary. Tauri
+    // does not interpret arbitrary data-directory environment variables itself.
+    #[cfg(feature = "webdriver-e2e")]
+    let app_data_dir = std::env::var_os("SCENEWEAVER_E2E_DATA_DIR")
+        .map(PathBuf::from)
+        .unwrap_or(default_app_data_dir);
+    #[cfg(not(feature = "webdriver-e2e"))]
+    let app_data_dir = default_app_data_dir;
     let app_handle = app.app_handle().clone();
     let state = AppState::new(&app_data_dir, app_handle)?;
     app.manage(state);

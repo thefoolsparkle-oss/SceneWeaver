@@ -61,7 +61,7 @@
 
 - 使用 MinGW-w64 而非 MSVC，可能存在个别 Windows 原生 API 兼容问题。
 - 当前 GNU/Tauri 测试二进制会以 `STATUS_ENTRYPOINT_NOT_FOUND` 启动失败；源码可编译，但 Rust 单元测试尚无法在此环境执行。`core_smoke` 可作为独立二进制实际运行。
-- 真实桌面 E2E 已覆盖 debug 应用的启动、首页壳层、导航至搜索页及隔离 SQLite 中自定义 Selects 集合的创建/刷新持久化；素材库创建/扫描、暂停恢复、真实媒体片段选片和导出仍未纳入桌面自动化。E2E 使用应用内嵌 WebDriver，不会下载或管理 Edge/Chrome Driver，且测试 feature 不进入 release/NSIS 安装包。
+- 真实桌面 E2E 已覆盖 debug 应用的启动、首页壳层、导航至搜索页、隔离 SQLite 中自定义 Selects 集合的创建/刷新持久化，以及隔离视频片段加入自定义集合后在 Selects 回读；素材库真实扫描、暂停恢复和导出仍未纳入桌面自动化。E2E 使用应用内嵌 WebDriver，测试数据目录只由测试 feature 的 `SCENEWEAVER_E2E_DATA_DIR` 接管，不会下载或管理 Edge/Chrome Driver，且测试 feature/夹具不进入 release/NSIS 安装包。
 - release EXE 已实际验证不开放 E2E WebDriver 端口，NSIS 安装 smoke 已确认 `WebView2Loader.dll` 与 `onnxruntime.dll` 被部署；但干净机器上的首次安装、卸载、升级和完整工作流仍待验证。
 - 早先 `tauri-driver` 的安装失败是启动 shell 未把 `C:\msys64\mingw64\bin` 放入 PATH，而不是缺少 `ktmw32` 库；该 external 路径现不作为项目 E2E 依赖。
 - 使用 GNU 工具链时，需要将 `C:\msys64\mingw64\bin` 加入启动 Cargo 的当前 shell `PATH`，以提供 `gcc` 与 `windres`。

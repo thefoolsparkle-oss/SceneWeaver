@@ -24,7 +24,7 @@ function Layout() {
           <NavLink to="/" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
             <span>🏠</span> 首页
           </NavLink>
-          <NavLink to="/libraries" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
+          <NavLink data-testid="nav-libraries" to="/libraries" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
             <span>🎞️</span> 素材库
           </NavLink>
           <NavLink data-testid="nav-search" to="/search" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>

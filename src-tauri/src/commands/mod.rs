@@ -1,4 +1,6 @@
 pub mod asset;
+#[cfg(feature = "webdriver-e2e")]
+pub mod e2e;
 pub mod entity;
 pub mod job;
 pub mod library;
@@ -63,6 +65,8 @@ pub fn register_commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + 
         entity::remove_entity_reference,
         entity::set_entity_asset_feedback,
         entity::find_assets_for_entity,
+        #[cfg(feature = "webdriver-e2e")]
+        e2e::seed_e2e_segment_select_fixture,
         selects::list_select_collections,
         selects::create_select_collection,
         selects::list_select_items,
