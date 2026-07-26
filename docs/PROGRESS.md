@@ -7,7 +7,7 @@
 
 ## 2026-07-26：桌面 E2E 基础
 
-- 新增 `npm.cmd run test:e2e`，真实启动带 `webdriver-e2e` feature 的 debug SceneWeaver、临时本地 Vite 服务和应用内嵌 WebDriver；已实际验证窗口标题、首页壳层渲染及导航至搜索页。
+- 新增 `npm.cmd run test:e2e`，真实启动带 `webdriver-e2e` feature 的 debug SceneWeaver、临时本地 Vite 服务和应用内嵌 WebDriver；已实际验证窗口标题、首页壳层渲染、导航至搜索页，以及创建自定义选片集合后刷新仍由隔离 SQLite 保留。
 - E2E 直接连接应用内 HTTP WebDriver 端口，不使用、下载或管理 Edge Driver / Chrome Driver；每次为测试应用创建并清理独立临时数据目录，避免读写或锁定用户 SQLite；feature 为显式可选项，release 与 NSIS 安装包不会启用测试服务器。
 - 本轮重新构建 NSIS 后，已实际静默安装、确认 `WebView2Loader.dll` 与 `onnxruntime.dll` 同级部署并启动超过 8 秒；另实际启动 release EXE，确认应用存活且 `127.0.0.1:4445` 未开放。
 - jsdom 仍承担快速页面交互覆盖；素材导入、扫描、片段选片及导出尚待扩展为真实桌面场景。

@@ -96,7 +96,7 @@ export default function Selects() {
   return <div className="p-8">
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold">我的选片</h1>
+        <h1 data-testid="selects-heading" className="text-2xl font-bold">我的选片</h1>
         <p className="mt-1 text-sm text-neutral-500">从素材库或搜索结果加入默认集合；在这里分组、排序、评分、标注并导出。</p>
       </div>
       {activeCollection && <div className="flex flex-wrap gap-2">
@@ -110,9 +110,9 @@ export default function Selects() {
         <h2 className="font-medium">选片集合</h2>
         <div className="mt-3 space-y-1">{collections.data?.map((collection) => <button key={collection.id} onClick={() => setCollectionId(collection.id)} className={`w-full rounded-lg px-3 py-2 text-left text-sm ${collection.id === collectionId ? 'bg-brand-50 text-brand-700 dark:bg-brand-950' : 'hover:bg-neutral-100 dark:hover:bg-neutral-900'}`}>{collection.name}</button>)}</div>
         <form className="mt-5 space-y-2 border-t pt-4" onSubmit={(event) => { event.preventDefault(); if (newName.trim()) create.mutate({ name: newName, description: newDescription }); }}>
-          <input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="新集合名称" maxLength={80} className="w-full rounded border px-3 py-2 text-sm" />
+          <input data-testid="select-collection-name" value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="新集合名称" maxLength={80} className="w-full rounded border px-3 py-2 text-sm" />
           <input value={newDescription} onChange={(event) => setNewDescription(event.target.value)} placeholder="说明（可选）" className="w-full rounded border px-3 py-2 text-sm" />
-          <button disabled={create.isPending} className="w-full rounded bg-brand-600 px-3 py-2 text-sm text-white disabled:opacity-50">新建集合</button>
+          <button data-testid="create-select-collection" disabled={create.isPending} className="w-full rounded bg-brand-600 px-3 py-2 text-sm text-white disabled:opacity-50">新建集合</button>
           {create.isError && <p className="text-xs text-red-600">{create.error.message}</p>}
         </form>
       </aside>

@@ -212,7 +212,7 @@ CI 必须从干净工作目录通过：`build.rs` 会在 Tauri 读取 `bundle.re
 
 ## E2E 测试
 
-- `npm.cmd run test:e2e` 已实际启动带 `webdriver-e2e` feature 的 debug Tauri 应用和本地 Vite，直接通过应用内嵌 WebDriver 验证窗口标题、首页壳层与首页→搜索导航；测试使用并清理独立临时数据目录，不读取或锁定用户 SQLite；它不使用、下载或管理 Edge/Chrome Driver，测试服务器不进入 release/NSIS 安装包。
+- `npm.cmd run test:e2e` 已实际启动带 `webdriver-e2e` feature 的 debug Tauri 应用和本地 Vite，直接通过应用内嵌 WebDriver 验证窗口标题、首页壳层、首页→搜索导航，以及自定义 Selects 集合创建后刷新仍存在；测试使用并清理独立临时数据目录，不读取或锁定用户 SQLite；它不使用、下载或管理 Edge/Chrome Driver，测试服务器不进入 release/NSIS 安装包。
 - release 隔离 smoke 已实际启动 release EXE，确认应用存活而 `127.0.0.1:4445` 不可访问；同轮 NSIS 静默安装 smoke 已确认 `WebView2Loader.dll` 与 `onnxruntime.dll` 和 EXE 同级且应用存活超过 8 秒。
 - jsdom 测试不替代完整 Tauri 桌面工作流；仍需把素材库创建、扫描、搜索结果、片段选片与导出扩展为真实窗口场景，并对安装包执行相同流程。
 

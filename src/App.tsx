@@ -33,7 +33,7 @@ function Layout() {
           <NavLink to="/jobs" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
             <span>⚙️</span> 任务
           </NavLink>
-          <NavLink to="/selects" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
+          <NavLink data-testid="nav-selects" to="/selects" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
             <span>⭐</span> 选片
           </NavLink>
           <NavLink to="/entities" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}><span>👤</span> 实体</NavLink>

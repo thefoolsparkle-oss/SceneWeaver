@@ -75,7 +75,19 @@ try {
   const heading = await browser.$('[data-testid="search-heading"]');
   await heading.waitForDisplayed();
   assert.ok((await heading.getText()).trim().length > 0);
-  console.log('desktop e2e passed: application launch and search navigation');
+
+  await (await browser.$('[data-testid="nav-selects"]')).click();
+  const selectsHeading = await browser.$('[data-testid="selects-heading"]');
+  await selectsHeading.waitForDisplayed();
+  const collectionName = 'E2E 自定义选片';
+  await (await browser.$('[data-testid="select-collection-name"]')).setValue(collectionName);
+  await (await browser.$('[data-testid="create-select-collection"]')).click();
+  const collection = await browser.$(`button=${collectionName}`);
+  await collection.waitForDisplayed();
+
+  await browser.refresh();
+  await (await browser.$(`button=${collectionName}`)).waitForDisplayed();
+  console.log('desktop e2e passed: application launch, search navigation, and isolated custom Selects persistence');
 } finally {
   await browser?.deleteSession().catch(() => undefined);
   app?.kill();
