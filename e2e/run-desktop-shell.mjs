@@ -4,12 +4,50 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { deflateSync } from 'node:zlib';
 import { remote } from 'webdriverio';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const appBinary = path.join(root, 'src-tauri', 'target', 'debug', 'sceneweaver.exe');
 const port = 4445;
 const devServerUrl = 'http://127.0.0.1:1420';
+
+function crc32(bytes) {
+  let crc = 0xffff_ffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb8_8320 : 0);
+    }
+  }
+  return (crc ^ 0xffff_ffff) >>> 0;
+}
+
+function pngChunk(type, data) {
+  const typeBytes = Buffer.from(type, 'ascii');
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  const checksum = Buffer.alloc(4);
+  checksum.writeUInt32BE(crc32(Buffer.concat([typeBytes, data])));
+  return Buffer.concat([length, typeBytes, data, checksum]);
+}
+
+function createPngFixture() {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(1, 0);
+  ihdr.writeUInt32BE(1, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  const rawPixels = Buffer.from([0, 18, 52, 86]);
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', deflateSync(rawPixels)),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+const pngFixture = createPngFixture();
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -52,6 +90,16 @@ async function readTextFileWhenReady(filePath, label) {
     await delay(100);
   }
   throw new Error(`${label} was not written: ${lastError}`);
+}
+
+async function waitForBodyText(expected, label) {
+  let lastText = '';
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    lastText = await (await browser.$('body')).getText();
+    if (lastText.includes(expected)) return lastText;
+    await delay(100);
+  }
+  throw new Error(`${label} did not render ${expected}:\n${lastText}`);
 }
 
 async function waitForCompletedScan(libraryId) {
@@ -103,16 +151,30 @@ let browser;
 const appDataDir = await mkdtemp(path.join(tmpdir(), 'sceneweaver-e2e-'));
 const mediaFixtureDir = path.join(appDataDir, 'media-fixture');
 const mediaFixturePath = path.join(mediaFixtureDir, 'scan-fixture.png');
+const resilienceFixtureDir = path.join(appDataDir, '中文 空格 素材库');
+const resilienceLongFixturePath = path.join(
+  resilienceFixtureDir,
+  ...Array.from(
+    { length: 8 },
+    (_, index) => `超长路径-${String(index).padStart(2, '0')}-abcdefghijklmnopqrstuvwxyz`,
+  ),
+  '长路径素材.png',
+);
+const resilienceCorruptFixturePath = path.join(resilienceFixtureDir, '损坏素材.png');
 const pauseFixtureDir = path.join(appDataDir, 'pause-fixture');
 const ffmpegPath = process.env.SCENEWEAVER_E2E_FFMPEG_BIN;
 const videoFixtureDir = path.join(appDataDir, 'video-fixture');
 const videoFixturePath = path.join(videoFixtureDir, 'e2e-video.mp4');
 await mkdir(mediaFixtureDir, { recursive: true });
-await writeFile(mediaFixturePath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl7dksAAAAASUVORK5CYII=', 'base64'));
+await writeFile(mediaFixturePath, pngFixture);
+await mkdir(path.dirname(resilienceLongFixturePath), { recursive: true });
+await writeFile(resilienceLongFixturePath, pngFixture);
+await writeFile(resilienceCorruptFixturePath, 'not an image');
+assert.ok(resilienceLongFixturePath.length > 260, `fixture path is not long enough: ${resilienceLongFixturePath.length}`);
 await mkdir(pauseFixtureDir, { recursive: true });
 await Promise.all(Array.from({ length: 200 }, (_, index) => writeFile(
   path.join(pauseFixtureDir, `pause-fixture-${String(index).padStart(3, '0')}.png`),
-  Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl7dksAAAAASUVORK5CYII=', 'base64'),
+  pngFixture,
 )));
 if (ffmpegPath) {
   await mkdir(videoFixtureDir, { recursive: true });
@@ -178,8 +240,32 @@ try {
   await scanButton.click();
   await waitForCompletedScan(scannedLibrary.id);
   await (await browser.$(`[data-testid="open-library-${scannedLibrary.id}"]`)).click();
-  const scannedLibraryText = await (await browser.$('body')).getText();
-  assert.ok(scannedLibraryText.includes('scan-fixture.png'), `scanned fixture asset missing from library detail:\n${scannedLibraryText}`);
+  await waitForBodyText('scan-fixture.png', 'scanned fixture asset');
+
+  const resilienceLibrary = await invoke('create_library', {
+    req: { name: 'E2E 中文长路径素材库', root_path: resilienceFixtureDir, index_profile: 'quick' },
+  });
+  await (await browser.$('[data-testid="nav-libraries"]')).click();
+  await browser.refresh();
+  const resilienceScanButton = await browser.$(`[data-testid="scan-library-${resilienceLibrary.id}"]`);
+  await resilienceScanButton.waitForDisplayed();
+  await resilienceScanButton.click();
+  await waitForCompletedScan(resilienceLibrary.id);
+  const resilienceAssets = await invoke('list_assets', { libraryId: resilienceLibrary.id });
+  assert.equal(resilienceAssets.length, 2, `resilience scan indexed ${resilienceAssets.length} assets instead of two`);
+  const longPathAsset = resilienceAssets.find((asset) => asset.file_name === '长路径素材.png');
+  assert.ok(longPathAsset, `long-path asset missing: ${JSON.stringify(resilienceAssets)}`);
+  assert.ok(longPathAsset.normalized_path.length > 260, `indexed path is not long enough: ${longPathAsset.normalized_path.length}`);
+  assert.ok(longPathAsset.normalized_path.includes('中文 空格 素材库'));
+  assert.ok(
+    longPathAsset.thumbnail_data_url?.startsWith('data:image/'),
+    `long-path image thumbnail was not generated: ${JSON.stringify(longPathAsset)}`,
+  );
+  const corruptAsset = resilienceAssets.find((asset) => asset.file_name === '损坏素材.png');
+  assert.ok(corruptAsset, `corrupt asset prevented indexing: ${JSON.stringify(resilienceAssets)}`);
+  assert.equal(corruptAsset.thumbnail_data_url, undefined, 'corrupt image unexpectedly produced a thumbnail');
+  await (await browser.$(`[data-testid="open-library-${resilienceLibrary.id}"]`)).click();
+  await waitForBodyText('长路径素材.png', 'long-path asset');
 
   const pausableLibrary = await invoke('create_library', {
     req: { name: 'E2E 暂停扫描素材库', root_path: pauseFixtureDir, index_profile: 'quick' },
@@ -276,7 +362,7 @@ try {
   assert.ok(csv.includes('fixture.mp4'), `CSV export omitted fixture media:\n${csv}`);
   assert.ok(csv.includes('00:00:01.000'), `CSV export omitted the segment in point:\n${csv}`);
   await browser.execute(() => { delete window.__SCENEWEAVER_E2E_EXPORT_PATH__; });
-  console.log(`desktop e2e passed: application launch, real PNG library scan, pause/resume scan workflow${ffmpegPath ? ', real video scan' : ''}, search navigation, custom Selects persistence, custom segment selects, and CSV export`);
+  console.log(`desktop e2e passed: application launch, real PNG library scan, Chinese/spaced long-path and corrupt-media resilience, pause/resume scan workflow${ffmpegPath ? ', real video scan' : ''}, search navigation, custom Selects persistence, custom segment selects, and CSV export`);
 } finally {
   await browser?.deleteSession().catch(() => undefined);
   app?.kill();

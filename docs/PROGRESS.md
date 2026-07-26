@@ -1,5 +1,11 @@
 # SceneWeaver 实施进度
 
+## 2026-07-26：超长路径缩略图与桌面扫描 E2E
+
+- 真实桌面 E2E 新增中文/空格、超过 260 字符路径的有效 PNG 和损坏 PNG：测试通过页面真实扫描按钮启动任务，确认长路径素材入库并返回 JPEG 缩略图，损坏图片仅缺失缩略图而不会阻断任务或隐藏有效素材。
+- 修复 Windows 超长路径缩略图：图片缩略图服务改用 Rust 文件 API 读取字节后在内存中解码，避免部分图像后端直接打开长路径时的 `MAX_PATH` 兼容问题；`core_smoke` 同时断言长路径 JPEG 缩略图实际写出。
+- E2E 的详情页资产断言改为等待真实异步渲染，避免扫描完成后 React Query 尚在加载时产生假失败；本机已实际通过完整桌面 E2E。
+
 ## 2026-07-26：Windows 发布图标与安装器复验
 
 - 用可审计的 `src-tauri/icons/sceneweaver.svg` 生成多分辨率 Windows `icon.ico`，替换旧的 70-byte 占位图标；Tauri 配置已显式使用该 ICO。
@@ -313,7 +319,7 @@ ACG 查询预设已接入搜索页（角色近景、雨夜侧脸、战斗无 UI/
 - Rust `cargo build` 成功（通过 `--exclude-all-symbols` 解决 GNU 工具链 DLL 导出符号过多问题）。
 - 前端：`npm.cmd run lint` 通过；`npm.cmd test` 通过（17 tests，含 4 项 jsdom 搜索与任务页交互测试）；`npm.cmd run build` 通过。
 - Rust：新增路径、指纹、帧率、任务控制、导出、选片标注、视频派生参数单元测试；本轮在补齐 MSYS2 MinGW-w64 的 `windres` 与 `gcc` 后，`cargo test --no-run` 已成功编译；测试二进制运行仍受 GNU/Tauri Windows `STATUS_ENTRYPOINT_NOT_FOUND` 阻塞。
-- 已有前端 jsdom 交互测试；2026-07-26 已新增并实际运行真实 Tauri 窗口 E2E（启动和首页→搜索导航）。素材库、扫描、片段选片与导出流程仍待覆盖。
+- 已有前端 jsdom 交互测试；2026-07-26 已新增并实际运行真实 Tauri 窗口 E2E，覆盖启动、首页→搜索导航、真实素材库扫描、中文/空格超长路径缩略图、损坏 PNG 容错、任务暂停/恢复、片段选片与 CSV 导出。
 - 早先 `tauri-driver` 安装失败是调用 shell 未带 `C:\msys64\mingw64\bin` 的 PATH 问题，而非缺少库；驱动随后可安装。但该外部 driver service 会自动管理 Edge Driver，不符合本项目 E2E 的无浏览器 driver 约束，现改为应用内嵌 WebDriver。
 - 已新增 GitHub Actions Windows 质量门禁：在 `main` 推送、PR 和手动触发时执行前端 lint/test/build、Rust 格式/测试编译和不下载模型的 `core_smoke`。首次 MSVC 远端运行已实际发现干净工作目录缺少 `target/release/WebView2Loader.dll` 的构建资源缺陷；现由 `build.rs` 从锁定的 `webview2-com-sys` 依赖暂存 DLL，2026-07-19 的干净 Windows 复验已成功通过 Rust 编译与 core smoke。
 
@@ -342,7 +348,7 @@ ACG 查询预设已接入搜索页（角色近景、雨夜侧脸、战斗无 UI/
 
 ## 下一轮任务
 
-1. 扩展核心 smoke 覆盖超长路径、损坏文件、暂停恢复和任务重启。
-2. 在 DaVinci Resolve、Premiere Pro、Final Cut Pro 中完成导入验证，并根据结果调整交换格式。
-3. 在具备 FFmpeg 的机器上验证视频关键帧、短预览与质量检测后，扩展本地向量索引。
-4. 为主流程建立可执行的集成与 E2E 测试基础设施。
+1. 在 DaVinci Resolve、Premiere Pro、Final Cut Pro 中完成导入验证，并根据结果调整交换格式。
+2. 用真实用户视频验证关键帧、短预览、黑帧/模糊检测和不同编码组合。
+3. 在干净 Windows 环境验证交互式安装、卸载、升级和 MSI；不隐式安装浏览器或运行时。
+4. 继续扩展真实桌面 E2E，覆盖崩溃后的任务恢复和无 API Key 主搜索工作流。

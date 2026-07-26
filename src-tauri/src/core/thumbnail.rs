@@ -1,3 +1,4 @@
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
@@ -39,7 +40,14 @@ impl ThumbnailService {
 }
 
 fn generate_image_thumbnail(input: &str, output: &Path) -> AppResult<Option<PathBuf>> {
-    let img = ImageReader::open(input)?;
+    // Read through Rust's filesystem API before handing the bytes to `image`.
+    // On Windows this keeps thumbnail generation working for library paths that
+    // exceed the legacy MAX_PATH boundary, while `ImageReader::open` may reject
+    // the same otherwise-readable path in some backends.
+    let bytes = std::fs::read(input)?;
+    let img = ImageReader::new(Cursor::new(bytes))
+        .with_guessed_format()
+        .map_err(|e| AppError::Other(format!("图片格式识别失败: {e}")))?;
     let img = img
         .decode()
         .map_err(|e| AppError::Other(format!("图片解码失败: {}", e)))?;

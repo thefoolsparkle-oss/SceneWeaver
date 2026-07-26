@@ -310,6 +310,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .cloned()
         .expect("primary smoke image must be indexed");
     assert!(cache.thumbnail_path(&primary_asset.id, "cover").is_file());
+    let long_path_asset = assets
+        .iter()
+        .find(|asset| asset.file_name == "长路径素材.png")
+        .cloned()
+        .expect("long-path smoke image must be indexed");
+    assert!(cache.thumbnail_path(&long_path_asset.id, "cover").is_file());
 
     // A library may move to another disk or receive a different mount point.
     // Reconnection must retain stable asset IDs and asset-level selects for files
