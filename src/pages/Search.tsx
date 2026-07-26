@@ -90,7 +90,7 @@ export default function Search() {
 
   return (
     <div className="p-8">
-      <h1 className="mb-2 text-2xl font-bold">搜索素材</h1>
+      <h1 data-testid="search-heading" className="mb-2 text-2xl font-bold">搜索素材</h1>
       <p className="mb-5 text-sm text-neutral-500">可结合关键词、参考图和本地实体搜索；安装本地语义模型后会额外使用图文向量召回。{acgPack.data ? ' ACG Creator Pack 已启用，会按本地词典增加优先匹配。' : ''}</p>
       <form onSubmit={submit} className="mb-6 flex gap-2">
         <input

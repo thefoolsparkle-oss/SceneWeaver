@@ -61,7 +61,9 @@
 
 - 使用 MinGW-w64 而非 MSVC，可能存在个别 Windows 原生 API 兼容问题。
 - 当前 GNU/Tauri 测试二进制会以 `STATUS_ENTRYPOINT_NOT_FOUND` 启动失败；源码可编译，但 Rust 单元测试尚无法在此环境执行。`core_smoke` 可作为独立二进制实际运行。
-- 2026-07-26 已实际尝试安装官方 `tauri-driver` 以建立 Windows 桌面 WebDriver E2E；当前 GNU 工具链缺少 `ktmw32` 链接库，驱动编译失败。真实 Tauri E2E 需改用完整 MSVC 环境或补齐该 MinGW 库；现有 jsdom 测试不受影响。
+- 真实桌面 E2E 已覆盖 debug 应用的启动、首页壳层和导航至搜索页；素材库创建/扫描、暂停恢复、真实媒体片段选片和导出仍未纳入桌面自动化。E2E 使用应用内嵌 WebDriver，不会下载或管理 Edge/Chrome Driver，且测试 feature 不进入 release/NSIS 安装包。
+- release EXE 已实际验证不开放 E2E WebDriver 端口，NSIS 安装 smoke 已确认 `WebView2Loader.dll` 与 `onnxruntime.dll` 被部署；但干净机器上的首次安装、卸载、升级和完整工作流仍待验证。
+- 早先 `tauri-driver` 的安装失败是启动 shell 未把 `C:\msys64\mingw64\bin` 放入 PATH，而不是缺少 `ktmw32` 库；该 external 路径现不作为项目 E2E 依赖。
 - 使用 GNU 工具链时，需要将 `C:\msys64\mingw64\bin` 加入启动 Cargo 的当前 shell `PATH`，以提供 `gcc` 与 `windres`。
 - Windows release EXE 与当前代码生成的 NSIS 安装包均已验证；MSI、干净环境的交互式安装、卸载和升级仍待验证。
 - 已配置 GitHub Actions Windows 质量门禁。首次远端运行暴露并推动修复了干净工作目录的 `WebView2Loader.dll` 资源缺陷；2026-07-19 的修复复验已通过 Rust 编译和默认 core smoke。它默认不下载语义模型，也不安装 FFmpeg，因此不会替代本地的模型、视频派生或安装器 smoke。

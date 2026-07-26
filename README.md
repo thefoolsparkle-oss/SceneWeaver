@@ -93,6 +93,8 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 前端测试现包含 jsdom 中的真实搜索页与任务中心交互：提交结构化查询、编辑/移除条件芯片、无效日期范围阻断、暂停/恢复命令，以及扫描进度事件更新。测试显式模拟 Tauri IPC，因此覆盖页面行为与请求参数，但不替代安装包内的桌面端到端验证。
 
+桌面壳层另有 `npm.cmd run test:e2e`：它构建前端、以 `webdriver-e2e` feature 启动临时 debug SceneWeaver，启动本地 Vite 后直接连接应用内嵌 WebDriver，验证真实窗口标题、首页渲染和进入搜索页的导航。每次运行使用并清理独立临时应用数据目录，不触碰用户数据库。该链路不下载或使用 Edge/Chrome Driver；测试 feature 不会进入 release/NSIS 安装包。
+
 如需运行不依赖窗口的真实核心集成验证（会在系统临时目录创建并清理测试图片），执行：
 
 ```powershell

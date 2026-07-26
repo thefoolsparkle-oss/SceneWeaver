@@ -7,7 +7,14 @@ pub use commands::register_commands;
 pub use core::app_state::{setup_app_state, AppState};
 
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    // Enabled only by the explicit `webdriver-e2e` build feature. Release
+    // bundles never expose this test server.
+    #[cfg(feature = "webdriver-e2e")]
+    let builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
+
+    builder
         .setup(|app| {
             setup_app_state(app)?;
             Ok(())

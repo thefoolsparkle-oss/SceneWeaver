@@ -1,5 +1,12 @@
 # SceneWeaver 实施进度
 
+## 2026-07-26：桌面 E2E 基础
+
+- 新增 `npm.cmd run test:e2e`，真实启动带 `webdriver-e2e` feature 的 debug SceneWeaver、临时本地 Vite 服务和应用内嵌 WebDriver；已实际验证窗口标题、首页壳层渲染及导航至搜索页。
+- E2E 直接连接应用内 HTTP WebDriver 端口，不使用、下载或管理 Edge Driver / Chrome Driver；每次为测试应用创建并清理独立临时数据目录，避免读写或锁定用户 SQLite；feature 为显式可选项，release 与 NSIS 安装包不会启用测试服务器。
+- 本轮重新构建 NSIS 后，已实际静默安装、确认 `WebView2Loader.dll` 与 `onnxruntime.dll` 同级部署并启动超过 8 秒；另实际启动 release EXE，确认应用存活且 `127.0.0.1:4445` 未开放。
+- jsdom 仍承担快速页面交互覆盖；素材导入、扫描、片段选片及导出尚待扩展为真实桌面场景。
+
 ## 2026-07-26：素材日期来源可解释
 
 - 媒体卡片现显示“拍摄/创建”或“文件修改”及对应本地日期，和日期范围筛选的优先级完全一致。
@@ -243,7 +250,7 @@ ACG 查询预设已接入搜索页（角色近景、雨夜侧脸、战斗无 UI/
 
 ## 尚未完成功能
 
-- 桌面窗口交互式端到端验证（release EXE 已验证可启动）。
+- 素材库创建、扫描、片段选片和导出的桌面端到端场景（当前已验证真实窗口启动与首页→搜索导航；release EXE 已验证可启动）。
 - 真实素材库扫描验证（超长路径、视频与损坏文件）。中文和空格路径已由 `core_smoke` 覆盖。
 - 真实用户视频素材的关键帧、短预览与质量检测验证（合成视频已覆盖）。
 - 经真实中文素材集评估和必要替换后的中文自然语言视觉语义模型，以及更强的视频多帧视觉索引。
@@ -260,8 +267,8 @@ ACG 查询预设已接入搜索页（角色近景、雨夜侧脸、战斗无 UI/
 - Rust `cargo build` 成功（通过 `--exclude-all-symbols` 解决 GNU 工具链 DLL 导出符号过多问题）。
 - 前端：`npm.cmd run lint` 通过；`npm.cmd test` 通过（17 tests，含 4 项 jsdom 搜索与任务页交互测试）；`npm.cmd run build` 通过。
 - Rust：新增路径、指纹、帧率、任务控制、导出、选片标注、视频派生参数单元测试；本轮在补齐 MSYS2 MinGW-w64 的 `windres` 与 `gcc` 后，`cargo test --no-run` 已成功编译；测试二进制运行仍受 GNU/Tauri Windows `STATUS_ENTRYPOINT_NOT_FOUND` 阻塞。
-- 已有前端 jsdom 交互测试；真实 Tauri 桌面集成与 E2E 测试尚未完成。
-- 2026-07-26 已尝试通过官方 `tauri-driver` 建立 Windows WebDriver E2E；GNU 工具链在驱动链接时缺少 `ktmw32`，因此该路径待完整 MSVC 或补齐 MinGW 库后继续，未将 jsdom 测试误报为桌面 E2E。
+- 已有前端 jsdom 交互测试；2026-07-26 已新增并实际运行真实 Tauri 窗口 E2E（启动和首页→搜索导航）。素材库、扫描、片段选片与导出流程仍待覆盖。
+- 早先 `tauri-driver` 安装失败是调用 shell 未带 `C:\msys64\mingw64\bin` 的 PATH 问题，而非缺少库；驱动随后可安装。但该外部 driver service 会自动管理 Edge Driver，不符合本项目 E2E 的无浏览器 driver 约束，现改为应用内嵌 WebDriver。
 - 已新增 GitHub Actions Windows 质量门禁：在 `main` 推送、PR 和手动触发时执行前端 lint/test/build、Rust 格式/测试编译和不下载模型的 `core_smoke`。首次 MSVC 远端运行已实际发现干净工作目录缺少 `target/release/WebView2Loader.dll` 的构建资源缺陷；现由 `build.rs` 从锁定的 `webview2-com-sys` 依赖暂存 DLL，2026-07-19 的干净 Windows 复验已成功通过 Rust 编译与 core smoke。
 
 ## 构建结果

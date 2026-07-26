@@ -12,6 +12,9 @@ rust-version = "1.75"
 name = "sceneweaver_lib"
 crate-type = ["staticlib", "rlib"]
 
+[features]
+webdriver-e2e = ["dep:tauri-plugin-wdio-webdriver"]
+
 [[bin]]
 name = "sceneweaver"
 path = "src/main.rs"
@@ -52,3 +55,4 @@ parking_lot = "0.12"
 # portable; SceneWeaver never falls back to a Python installation.
 fastembed = { version = "5.17.3", default-features = false, features = ["ort-load-dynamic", "hf-hub-native-tls", "image-models"] }
 ort = { version = "=2.0.0-rc.12", default-features = false, features = ["load-dynamic"] }
+tauri-plugin-wdio-webdriver = { version = "1", optional = true }

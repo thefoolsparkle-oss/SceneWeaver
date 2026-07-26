@@ -18,7 +18,7 @@ function Layout() {
     <div className="flex h-full w-full">
       <aside className="flex w-56 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
         <div className="flex h-14 items-center border-b border-neutral-200 px-4 dark:border-neutral-800">
-          <span className="text-lg font-bold tracking-tight">SceneWeaver</span>
+          <span data-testid="app-name" className="text-lg font-bold tracking-tight">SceneWeaver</span>
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-3">
           <NavLink to="/" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
@@ -27,7 +27,7 @@ function Layout() {
           <NavLink to="/libraries" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
             <span>🎞️</span> 素材库
           </NavLink>
-          <NavLink to="/search" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
+          <NavLink data-testid="nav-search" to="/search" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
             <span>🔎</span> 搜索
           </NavLink>
           <NavLink to="/jobs" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
