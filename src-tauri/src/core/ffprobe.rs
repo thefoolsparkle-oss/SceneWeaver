@@ -54,7 +54,11 @@ pub fn probe_media(path: &Path) -> AppResult<MediaProbeInfo> {
         .arg(path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let output = run_ffprobe_with_timeout(&mut command, Duration::from_secs(30))?;
+    let output = run_command_with_timeout(
+        &mut command,
+        Duration::from_secs(30),
+        "ffprobe 超时（30 秒）；已终止子进程",
+    )?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -104,9 +108,13 @@ pub fn probe_media(path: &Path) -> AppResult<MediaProbeInfo> {
 /// Waits without leaving a timed-out ffprobe child behind. This mirrors the
 /// FFmpeg derivative supervisor: polling keeps the child handle available so
 /// it can be terminated and reaped before the scan proceeds.
-fn run_ffprobe_with_timeout(
+/// Runs an externally supplied metadata command with a bounded lifetime.
+/// Kept public so the real core smoke can exercise the termination path
+/// without requiring a deliberately broken media file.
+pub fn run_command_with_timeout(
     command: &mut Command,
     timeout: Duration,
+    timeout_message: &str,
 ) -> AppResult<std::process::Output> {
     let mut child = command.spawn()?;
     let deadline = Instant::now() + timeout;
@@ -115,11 +123,13 @@ fn run_ffprobe_with_timeout(
             return child.wait_with_output().map_err(AppError::from);
         }
         if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(AppError::FfprobeUnavailable(
-                "ffprobe 超时（30 秒）；已终止子进程".to_string(),
-            ));
+            if let Err(error) = child.kill() {
+                if error.kind() != std::io::ErrorKind::InvalidInput {
+                    return Err(error.into());
+                }
+            }
+            child.wait()?;
+            return Err(AppError::FfprobeUnavailable(timeout_message.to_string()));
         }
         std::thread::sleep(Duration::from_millis(100));
     }

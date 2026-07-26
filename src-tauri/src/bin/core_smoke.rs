@@ -243,6 +243,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let control = JobControl::new();
     let progress = SilentProgress;
 
+    let mut slow_probe = std::process::Command::new("ping");
+    slow_probe
+        .args(["127.0.0.1", "-n", "4"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    let timeout_started = std::time::Instant::now();
+    assert!(sceneweaver_lib::core::ffprobe::run_command_with_timeout(
+        &mut slow_probe,
+        std::time::Duration::from_millis(100),
+        "smoke timeout",
+    )
+    .is_err());
+    assert!(
+        timeout_started.elapsed() < std::time::Duration::from_secs(2),
+        "timed-out probe must be terminated rather than continue in background"
+    );
+
     let mut long_path_dir = media_root.clone();
     for index in 0..8 {
         long_path_dir.push(format!("超长路径-{index:02}-abcdefghijklmnopqrstuvwxyz"));
