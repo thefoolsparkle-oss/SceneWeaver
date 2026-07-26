@@ -91,7 +91,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 推送到 `main` 或创建 Pull Request 时，[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) 会在 Windows Runner 自动执行前端 lint/test/build、Rust 格式与测试编译，以及不依赖模型下载的 `core_smoke`。2026-07-19 已在干净 Windows Runner 实际通过完整质量门禁；后续结果以 GitHub Actions 页面为准。
 
-前端测试现包含 jsdom 中的真实搜索页与任务中心交互：提交结构化查询、编辑/移除条件芯片、无效日期范围阻断、暂停/恢复命令，以及扫描进度事件更新。测试显式模拟 Tauri IPC，因此覆盖页面行为与请求参数，但不替代安装包内的桌面端到端验证。
+前端测试现包含 jsdom 中的真实搜索页、任务中心与 Selects 交互：提交结构化查询、编辑/移除条件芯片、无效日期范围阻断、暂停/恢复命令、扫描进度事件更新，以及自定义选片集合的 CSV 导出、排序写回和推荐入/出点毫秒转换。测试显式模拟 Tauri IPC，因此覆盖页面行为与请求参数，但不替代安装包内的桌面端到端验证。
 
 桌面壳层另有 `npm.cmd run test:e2e`：它构建前端、以 `webdriver-e2e` feature 启动临时 debug SceneWeaver，启动本地 Vite 后直接连接应用内嵌 WebDriver，验证真实窗口标题、首页渲染和进入搜索页的导航。每次运行使用并清理独立临时应用数据目录，不触碰用户数据库。该链路不下载或使用 Edge/Chrome Driver；测试 feature 不会进入 release/NSIS 安装包。
 

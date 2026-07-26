@@ -1,5 +1,10 @@
 # SceneWeaver 实施进度
 
+## 2026-07-26：自定义选片集合交互回归
+
+- 新增 Selects 页面 jsdom 交互测试，实际覆盖自定义集合的 CSV 保存路径选择与导出调用、键盘替代“下移”排序写回，以及推荐入/出点从秒转换为 SQLite 毫秒值。
+- 后端 `core_smoke` 已覆盖默认与自定义集合的真实 CSV/JSON/EDL/FCPXML 写出与顺序；本轮补足页面到 IPC 参数的回归保护。真实桌面窗口中的素材导入、片段选片和导出仍需继续纳入 E2E。
+
 ## 2026-07-26：桌面 E2E 基础
 
 - 新增 `npm.cmd run test:e2e`，真实启动带 `webdriver-e2e` feature 的 debug SceneWeaver、临时本地 Vite 服务和应用内嵌 WebDriver；已实际验证窗口标题、首页壳层渲染及导航至搜索页。
