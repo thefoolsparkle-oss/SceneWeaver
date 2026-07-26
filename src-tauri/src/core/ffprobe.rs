@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 
@@ -42,27 +41,20 @@ struct FfprobeStream {
 pub fn probe_media(path: &Path) -> AppResult<MediaProbeInfo> {
     let ffprobe_exe = find_ffprobe()?;
 
-    let source = path.to_path_buf();
-    let (sender, receiver) = mpsc::sync_channel(1);
-    std::thread::spawn(move || {
-        let result = Command::new(ffprobe_exe)
-            .args([
-                "-v",
-                "error",
-                "-print_format",
-                "json",
-                "-show_format",
-                "-show_streams",
-            ])
-            .arg(source)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output();
-        let _ = sender.send(result);
-    });
-    let output = receiver
-        .recv_timeout(Duration::from_secs(30))
-        .map_err(|_| AppError::FfprobeUnavailable("ffprobe 超时（30 秒）".to_string()))??;
+    let mut command = Command::new(ffprobe_exe);
+    command
+        .args([
+            "-v",
+            "error",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+        ])
+        .arg(path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let output = run_ffprobe_with_timeout(&mut command, Duration::from_secs(30))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -107,6 +99,30 @@ pub fn probe_media(path: &Path) -> AppResult<MediaProbeInfo> {
         codec,
         capture_time,
     })
+}
+
+/// Waits without leaving a timed-out ffprobe child behind. This mirrors the
+/// FFmpeg derivative supervisor: polling keeps the child handle available so
+/// it can be terminated and reaped before the scan proceeds.
+fn run_ffprobe_with_timeout(
+    command: &mut Command,
+    timeout: Duration,
+) -> AppResult<std::process::Output> {
+    let mut child = command.spawn()?;
+    let deadline = Instant::now() + timeout;
+    loop {
+        if child.try_wait()?.is_some() {
+            return child.wait_with_output().map_err(AppError::from);
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(AppError::FfprobeUnavailable(
+                "ffprobe 超时（30 秒）；已终止子进程".to_string(),
+            ));
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
 }
 
 /// FFmpeg's interoperable metadata key is the RFC 3339 creation_time. Some
