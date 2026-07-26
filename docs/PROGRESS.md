@@ -1,5 +1,10 @@
 # SceneWeaver 实施进度
 
+## 2026-07-26：当前 NSIS 安装包复验
+
+- 已用当前代码重新生成 `SceneWeaver_0.1.0_x64-setup.exe`，并静默安装到专用临时目录：安装器退出码为 0，`sceneweaver.exe`（58,726,850 bytes）、`WebView2Loader.dll`（160,320 bytes）和 `onnxruntime.dll`（14,897,976 bytes）均同级。
+- 已从安装目录启动 EXE 并确认其隐藏存活超过 8 秒，然后终止进程并清理专用测试目录；该流程没有下载或使用 Edge。
+
 ## 2026-07-26：可选真实视频扫描桌面 E2E
 
 - 向 `npm.cmd run test:e2e` 明确传入 `SCENEWEAVER_E2E_FFMPEG_BIN` 后，测试会使用该本机可执行文件生成隔离 MP4，扫描并确认视频时长与镜头片段均已写入 SQLite；本机实测已通过。
@@ -317,7 +322,7 @@ ACG 查询预设已接入搜索页（角色近景、雨夜侧脸、战斗无 UI/
 - Rust `cargo build --release`：成功；当前生成的 `sceneweaver.exe` 已实际启动并在 8 秒进程存活检查后停止。
 - Rust `cargo run --bin core_smoke`：成功；实际验证中文/空格路径、缩略图、增量扫描、删除离线、默认选片导出与片段 Selects。
 - `npm.cmd run tauri:build -- --bundles nsis`：成功；当前代码已生成 NSIS 安装器 `SceneWeaver_0.1.0_x64-setup.exe`。
-- NSIS 安装 smoke：2026-07-26 当前安装器已成功在专用临时目录静默安装（退出码 0），确认 EXE（58,875,967 bytes）、`WebView2Loader.dll`（160,320 bytes）、`onnxruntime.dll`（14,897,976 bytes）均同级且应用隐藏运行超过 8 秒；临时安装目录已清理。
+- NSIS 安装 smoke：2026-07-26 当前安装器已成功在专用临时目录静默安装（退出码 0），确认 EXE（58,726,850 bytes）、`WebView2Loader.dll`（160,320 bytes）、`onnxruntime.dll`（14,897,976 bytes）均同级且应用隐藏运行超过 8 秒；临时安装目录已清理，且该检查没有下载或使用 Edge。
 - Windows release EXE 启动验证：成功（进程运行超过 8 秒后由验证脚本停止）。
 - Rust `cargo test`：测试二进制启动失败（`STATUS_ENTRYPOINT_NOT_FOUND`），待迁移 MSVC 工具链或修复 GNU 运行时加载问题。
 - `tauri dev`：未完整验证；release EXE 已完成实际启动验证。
