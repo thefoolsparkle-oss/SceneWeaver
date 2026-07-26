@@ -105,6 +105,8 @@ cargo run --manifest-path src-tauri/Cargo.toml --bin core_smoke
 npm.cmd run tauri build
 ```
 
+2026-07-26 已对该命令生成的 NSIS 安装器完成隔离静默安装 smoke：`sceneweaver.exe`、`WebView2Loader.dll` 与 `onnxruntime.dll` 均在安装目录同级，应用隐藏启动后存活超过 8 秒。请使用安装器内的 EXE，而不是从构建目录单独复制 EXE。
+
 ## 许可证
 
 MIT（以仓库根目录 LICENSE 文件为准）
