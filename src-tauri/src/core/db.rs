@@ -1000,6 +1000,26 @@ impl Database {
         Self::add_segment_to_select_collection_conn(&conn, &collection_id, asset_id, segment_id)
     }
 
+    pub fn add_segment_to_select_collection(
+        &self,
+        collection_id: &str,
+        asset_id: &str,
+        segment_id: &str,
+    ) -> AppResult<()> {
+        let conn = self.open()?;
+        let collection_exists: Option<i64> = conn
+            .query_row(
+                "SELECT 1 FROM selects_collections WHERE id = ?1",
+                [collection_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if collection_exists.is_none() {
+            return Err(AppError::Other("选片集合不存在或已被删除".to_string()));
+        }
+        Self::add_segment_to_select_collection_conn(&conn, collection_id, asset_id, segment_id)
+    }
+
     fn default_select_collection_id(conn: &Connection) -> AppResult<String> {
         let existing_collection: Option<String> = conn.query_row(
             "SELECT id FROM selects_collections WHERE name = '我的选片' ORDER BY created_at LIMIT 1",

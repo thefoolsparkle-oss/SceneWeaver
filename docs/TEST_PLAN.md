@@ -61,7 +61,8 @@
 
 - 在 jsdom 中选择自定义集合，点击 CSV 导出并确认保存路径与集合 ID 被原样提交给 Tauri IPC。
 - 对首个项目使用“下移”键盘替代排序，确认以目标位置写回；填写推荐入/出点秒数后，确认页面提交对应的毫秒整数。
-- `core_smoke` 继续验证默认和自定义集合的真实 CSV、JSON、EDL、FCPXML 写出，以及推荐入/出点优先于片段范围。
+- `core_smoke` 继续验证默认和自定义集合的真实 CSV、JSON、EDL、FCPXML 写出；其中自定义集合覆盖片段写入和推荐入/出点优先于片段范围。
+- 在素材库片段面板选择自定义集合并加入镜头；确认集合、资产与片段 ID 一起提交，重复加入不产生重复项，导出使用推荐入/出点或该片段范围。
 
 ## 批量选片
 
@@ -212,7 +213,7 @@ CI 必须从干净工作目录通过：`build.rs` 会在 Tauri 读取 `bundle.re
 
 ## E2E 测试
 
-- `npm.cmd run test:e2e` 已实际启动带 `webdriver-e2e` feature 的 debug Tauri 应用和本地 Vite，直接通过应用内嵌 WebDriver 验证窗口标题、首页壳层、首页→搜索导航，以及自定义 Selects 集合创建后刷新仍存在；测试使用并清理独立临时数据目录，不读取或锁定用户 SQLite；它不使用、下载或管理 Edge/Chrome Driver，测试服务器不进入 release/NSIS 安装包。
+- `npm.cmd run test:e2e` 会自行补齐本项目 GNU 工具链的 MinGW 路径，实际启动带 `webdriver-e2e` feature 的 debug Tauri 应用和本地 Vite，直接通过应用内嵌 WebDriver 验证窗口标题、首页壳层、首页→搜索导航，以及自定义 Selects 集合创建后刷新仍存在；测试使用并清理独立临时数据目录，不读取或锁定用户 SQLite；它不使用、下载或管理 Edge/Chrome Driver，测试服务器不进入 release/NSIS 安装包。
 - release 隔离 smoke 已实际启动 release EXE，确认应用存活而 `127.0.0.1:4445` 不可访问；同轮 NSIS 静默安装 smoke 已确认 `WebView2Loader.dll` 与 `onnxruntime.dll` 和 EXE 同级且应用存活超过 8 秒。
 - jsdom 测试不替代完整 Tauri 桌面工作流；仍需把素材库创建、扫描、搜索结果、片段选片与导出扩展为真实窗口场景，并对安装包执行相同流程。
 

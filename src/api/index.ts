@@ -123,6 +123,8 @@ export const createSelectCollection = (request: CreateSelectCollectionRequest): 
 export const listSelectItems = (collectionId: string): Promise<SelectItem[]> => invoke('list_select_items', { collectionId });
 export const addAssetsToSelectCollection = (collectionId: string, assetIds: string[]): Promise<number> =>
   invoke('add_assets_to_select_collection', { collectionId, assetIds });
+export const addSegmentToSelectCollection = (collectionId: string, assetId: string, segmentId: string): Promise<void> =>
+  invoke('add_segment_to_select_collection', { collectionId, assetId, segmentId });
 export const addSelectItemTag = (itemId: string, value: string): Promise<string[]> =>
   invoke('add_select_item_tag', { itemId, value });
 export const addSelectItemTagBatch = (itemIds: string[], value: string): Promise<number> =>

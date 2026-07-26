@@ -11,7 +11,7 @@ use sceneweaver_lib::core::job_queue::{JobControl, ProgressUpdate};
 use sceneweaver_lib::core::scanner::Scanner;
 use sceneweaver_lib::models::{
     Entity, EntityReference, IndexProfile, Job, JobStatus, JobType, Library, LibraryStatus,
-    SearchRequest, SelectCollection,
+    SearchRequest, SelectCollection, UpdateSelectItemRequest,
 };
 
 struct SilentProgress;
@@ -635,6 +635,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     db.replace_segments(&primary_asset.id, &segments)?;
     db.add_segment_to_default_selects(&primary_asset.id, &segments[1].id)?;
     db.add_segment_to_default_selects(&primary_asset.id, &segments[1].id)?;
+    db.add_segment_to_select_collection(&batch_collection.id, &primary_asset.id, &segments[1].id)?;
+    db.add_segment_to_select_collection(&batch_collection.id, &primary_asset.id, &segments[1].id)?;
+    let custom_segment_item = db
+        .list_select_items(&batch_collection.id)?
+        .into_iter()
+        .find(|item| item.segment_id.as_deref() == Some(segments[1].id.as_str()))
+        .expect("custom collection must retain the selected segment");
+    db.update_select_item(
+        &custom_segment_item.id,
+        &UpdateSelectItemRequest {
+            rating: Some(4),
+            note: Some("custom segment range".to_string()),
+            recommended_in_ms: Some(1_500),
+            recommended_out_ms: Some(2_500),
+        },
+    )?;
+    let custom_segment_csv_path = root.join("custom-segment-selects.csv");
+    write_select_items_csv(
+        &custom_segment_csv_path,
+        &db.list_select_items(&batch_collection.id)?,
+    )?;
+    let custom_segment_csv = std::fs::read_to_string(&custom_segment_csv_path)?;
+    assert!(custom_segment_csv.contains("00:00:01.500"));
+    assert!(custom_segment_csv.contains("custom segment range"));
     let default_collection = db
         .list_select_collections()?
         .into_iter()

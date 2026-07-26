@@ -78,6 +78,18 @@ pub async fn add_assets_to_select_collection(
 }
 
 #[tauri::command]
+pub async fn add_segment_to_select_collection(
+    state: State<'_, AppState>,
+    collection_id: String,
+    asset_id: String,
+    segment_id: String,
+) -> AppResult<()> {
+    state
+        .db
+        .add_segment_to_select_collection(&collection_id, &asset_id, &segment_id)
+}
+
+#[tauri::command]
 pub async fn add_select_item_tag(
     state: State<'_, AppState>,
     item_id: String,

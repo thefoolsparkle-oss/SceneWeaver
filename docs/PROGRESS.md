@@ -1,5 +1,10 @@
 # SceneWeaver 实施进度
 
+## 2026-07-26：片段加入自定义选片集合
+
+- 镜头片段面板现在可选择“我的选片”或任一自定义集合；写入仍由后端同时校验集合、资产和片段的归属，重复加入保持幂等。
+- `core_smoke` 已实际验证自定义集合保存片段、保存推荐入/出点并写出包含推荐时间码的 CSV；页面 jsdom 测试覆盖选择自定义集合后提交的集合/资产/片段 IPC 参数。
+
 ## 2026-07-26：自定义选片集合交互回归
 
 - 新增 Selects 页面 jsdom 交互测试，实际覆盖自定义集合的 CSV 保存路径选择与导出调用、键盘替代“下移”排序写回，以及推荐入/出点从秒转换为 SQLite 毫秒值。
@@ -8,6 +13,7 @@
 ## 2026-07-26：桌面 E2E 基础
 
 - 新增 `npm.cmd run test:e2e`，真实启动带 `webdriver-e2e` feature 的 debug SceneWeaver、临时本地 Vite 服务和应用内嵌 WebDriver；已实际验证窗口标题、首页壳层渲染、导航至搜索页，以及创建自定义选片集合后刷新仍由隔离 SQLite 保留。
+- `test:e2e` 脚本现自行把 `C:\msys64\mingw64\bin` 放入其 Cargo 子进程路径，避免独立运行时因找不到 GNU `ktmw32` 导入库而在链接阶段中断。
 - E2E 直接连接应用内 HTTP WebDriver 端口，不使用、下载或管理 Edge Driver / Chrome Driver；每次为测试应用创建并清理独立临时数据目录，避免读写或锁定用户 SQLite；feature 为显式可选项，release 与 NSIS 安装包不会启用测试服务器。
 - 本轮重新构建 NSIS 后，已实际静默安装、确认 `WebView2Loader.dll` 与 `onnxruntime.dll` 同级部署并启动超过 8 秒；另实际启动 release EXE，确认应用存活且 `127.0.0.1:4445` 未开放。
 - jsdom 仍承担快速页面交互覆盖；素材导入、扫描、片段选片及导出尚待扩展为真实桌面场景。
