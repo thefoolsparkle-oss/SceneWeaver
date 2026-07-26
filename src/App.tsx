@@ -30,7 +30,7 @@ function Layout() {
           <NavLink data-testid="nav-search" to="/search" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
             <span>🔎</span> 搜索
           </NavLink>
-          <NavLink to="/jobs" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
+          <NavLink data-testid="nav-jobs" to="/jobs" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
             <span>⚙️</span> 任务
           </NavLink>
           <NavLink data-testid="nav-selects" to="/selects" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>

@@ -113,12 +113,12 @@ function JobRow({
         </div>
         <div className="flex gap-2">
           {job.status === 'running' && (
-            <button onClick={onPause} className="rounded border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800">
+            <button data-testid={`pause-job-${job.id}`} onClick={onPause} className="rounded border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800">
               暂停
             </button>
           )}
           {job.status === 'paused' && (
-            <button onClick={onResume} className="rounded border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800">
+            <button data-testid={`resume-job-${job.id}`} onClick={onResume} className="rounded border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800">
               恢复
             </button>
           )}

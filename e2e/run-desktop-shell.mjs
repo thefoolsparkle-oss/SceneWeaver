@@ -60,6 +60,23 @@ async function waitForCompletedScan(libraryId) {
   throw new Error(`fixture scan did not complete: ${lastStatus}`);
 }
 
+async function waitForScanStatus(libraryId, expectedStatuses) {
+  let lastStatus = 'no scan job found';
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const jobs = await invoke('list_jobs');
+    const job = jobs.find((candidate) => candidate.library_id === libraryId && candidate.job_type === 'scan');
+    if (job) {
+      lastStatus = job.status;
+      if (expectedStatuses.includes(job.status)) return job;
+      if (job.status === 'failed' || job.status === 'cancelled' || job.status === 'completed') {
+        throw new Error(`fixture scan reached ${job.status} before ${expectedStatuses.join(' or ')}`);
+      }
+    }
+    await delay(100);
+  }
+  throw new Error(`fixture scan did not reach ${expectedStatuses.join(' or ')}: ${lastStatus}`);
+}
+
 const vite = spawn(process.execPath, [path.join(root, 'node_modules', 'vite', 'bin', 'vite.js'), '--host', '127.0.0.1', '--port', '1420', '--strictPort'], {
   cwd: root,
   stdio: 'pipe',
@@ -75,8 +92,14 @@ let browser;
 const appDataDir = await mkdtemp(path.join(tmpdir(), 'sceneweaver-e2e-'));
 const mediaFixtureDir = path.join(appDataDir, 'media-fixture');
 const mediaFixturePath = path.join(mediaFixtureDir, 'scan-fixture.png');
+const pauseFixtureDir = path.join(appDataDir, 'pause-fixture');
 await mkdir(mediaFixtureDir, { recursive: true });
 await writeFile(mediaFixturePath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl7dksAAAAASUVORK5CYII=', 'base64'));
+await mkdir(pauseFixtureDir, { recursive: true });
+await Promise.all(Array.from({ length: 200 }, (_, index) => writeFile(
+  path.join(pauseFixtureDir, `pause-fixture-${String(index).padStart(3, '0')}.png`),
+  Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl7dksAAAAASUVORK5CYII=', 'base64'),
+)));
 
 async function invoke(command, args = {}) {
   const result = await browser.executeAsync((name, input, done) => {
@@ -134,6 +157,27 @@ try {
   const scannedLibraryText = await (await browser.$('body')).getText();
   assert.ok(scannedLibraryText.includes('scan-fixture.png'), `scanned fixture asset missing from library detail:\n${scannedLibraryText}`);
 
+  const pausableLibrary = await invoke('create_library', {
+    req: { name: 'E2E 暂停扫描素材库', root_path: pauseFixtureDir, index_profile: 'quick' },
+  });
+  await (await browser.$('[data-testid="nav-libraries"]')).click();
+  await browser.refresh();
+  const pauseScanButton = await browser.$(`[data-testid="scan-library-${pausableLibrary.id}"]`);
+  await pauseScanButton.waitForDisplayed();
+  await pauseScanButton.click();
+  const runningScan = await waitForScanStatus(pausableLibrary.id, ['running']);
+  await (await browser.$('[data-testid="nav-jobs"]')).click();
+  const pauseJobButton = await browser.$(`[data-testid="pause-job-${runningScan.id}"]`);
+  await pauseJobButton.waitForDisplayed({ timeout: 15_000 });
+  await pauseJobButton.click();
+  await waitForScanStatus(pausableLibrary.id, ['paused']);
+  const resumeJobButton = await browser.$(`[data-testid="resume-job-${runningScan.id}"]`);
+  await resumeJobButton.waitForDisplayed({ timeout: 15_000 });
+  await resumeJobButton.click();
+  await waitForCompletedScan(pausableLibrary.id);
+  const pausedAssets = await invoke('list_assets', { libraryId: pausableLibrary.id });
+  assert.equal(pausedAssets.length, 200, `pause/resume scan indexed ${pausedAssets.length} assets instead of 200`);
+
   await (await browser.$('[data-testid="nav-search"]')).click();
   const heading = await browser.$('[data-testid="search-heading"]');
   await heading.waitForDisplayed();
@@ -188,7 +232,7 @@ try {
   assert.ok(csv.includes('fixture.mp4'), `CSV export omitted fixture media:\n${csv}`);
   assert.ok(csv.includes('00:00:01.000'), `CSV export omitted the segment in point:\n${csv}`);
   await browser.execute(() => { delete window.__SCENEWEAVER_E2E_EXPORT_PATH__; });
-  console.log('desktop e2e passed: application launch, real PNG library scan, search navigation, custom Selects persistence, custom segment selects, and CSV export');
+  console.log('desktop e2e passed: application launch, real PNG library scan, pause/resume scan workflow, search navigation, custom Selects persistence, custom segment selects, and CSV export');
 } finally {
   await browser?.deleteSession().catch(() => undefined);
   app?.kill();
