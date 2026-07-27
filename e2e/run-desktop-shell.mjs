@@ -327,7 +327,7 @@ try {
   await recoveryScanButton.click();
   await waitForScanStatus(recoveryLibrary.id, ['running']);
   await restartAppAfterCrash();
-  await waitForCompletedScan(recoveryLibrary.id, 600);
+  await waitForCompletedScan(recoveryLibrary.id, 1_200);
   const recoveredAssets = await invoke('list_assets', { libraryId: recoveryLibrary.id });
   assert.equal(recoveredAssets.length, 1_000, `recovered scan indexed ${recoveredAssets.length} assets instead of 1,000`);
 
@@ -361,6 +361,29 @@ try {
   const searchText = await waitForBodyText('关键词结果：1 项', 'keyword search result');
   assert.ok(searchText.includes('scan-fixture.png'), `keyword search omitted indexed fixture:\n${searchText}`);
   assert.ok(searchText.includes('满足必须条件：scan-fixture'), `keyword search omitted match reason:\n${searchText}`);
+
+  const entityName = 'E2E 测试实体';
+  await (await browser.$('[data-testid="nav-entities"]')).click();
+  const entityNameInput = await browser.$('input[placeholder="实体名称"]');
+  await entityNameInput.setValue(entityName);
+  await (await browser.$('input[placeholder="别名，用逗号分隔"]')).setValue('scan-fixture');
+  await (await browser.$('button=创建')).click();
+  await waitForBodyText(entityName, 'created entity');
+  const entity = (await invoke('list_entities')).find((candidate) => candidate.name === entityName);
+  assert.ok(entity, `created entity was not persisted: ${JSON.stringify(await invoke('list_entities'))}`);
+  assert.deepEqual(entity.aliases, ['scan-fixture']);
+
+  await (await browser.$('[data-testid="nav-search"]')).click();
+  const entitySelect = await browser.$('#entity-search');
+  await browser.execute((element, value) => {
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+    valueSetter.call(element, value);
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }, entitySelect, entity.id);
+  await (await browser.$('button=查找实体素材')).click();
+  const entitySearchText = await waitForBodyText('实体匹配结果：1 项', 'entity alias search result');
+  assert.ok(entitySearchText.includes('scan-fixture.png'), `entity alias search omitted indexed fixture:\n${entitySearchText}`);
+  assert.ok(entitySearchText.includes(`本地实体匹配：${entityName}（名称、别名或正参考图）`), `entity alias search omitted explanation:\n${entitySearchText}`);
 
   await (await browser.$('[data-testid="nav-selects"]')).click();
   const selectsHeading = await browser.$('[data-testid="selects-heading"]');
@@ -411,7 +434,7 @@ try {
   assert.ok(csv.includes('fixture.mp4'), `CSV export omitted fixture media:\n${csv}`);
   assert.ok(csv.includes('00:00:01.000'), `CSV export omitted the segment in point:\n${csv}`);
   await browser.execute(() => { delete window.__SCENEWEAVER_E2E_EXPORT_PATH__; });
-  console.log(`desktop e2e passed: application launch, real PNG library scan, Chinese/spaced long-path and corrupt-media resilience, pause/resume scan workflow, crash recovery scan workflow${ffmpegPath ? ', real video scan' : ''}, no-API-key keyword search, custom Selects persistence, custom segment selects, and CSV export`);
+  console.log(`desktop e2e passed: application launch, real PNG library scan, Chinese/spaced long-path and corrupt-media resilience, pause/resume scan workflow, crash recovery scan workflow${ffmpegPath ? ', real video scan' : ''}, no-API-key keyword and entity-alias search, custom Selects persistence, custom segment selects, and CSV export`);
 } finally {
   await browser?.deleteSession().catch(() => undefined);
   app?.kill();

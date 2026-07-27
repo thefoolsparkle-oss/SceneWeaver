@@ -214,6 +214,7 @@ CI 必须从干净工作目录通过：`build.rs` 会在 Tauri 读取 `bundle.re
 ## E2E 测试
 
 - 崩溃恢复：在 1,000 个隔离 PNG 的真实扫描进入运行中后强制结束 debug 应用，再以同一 `SCENEWEAVER_E2E_DATA_DIR` 重启；确认 SQLite 中的中断任务自动恢复并全部入库，不触碰用户数据。
+- Entity 别名：在真实实体页面创建含 `scan-fixture` 别名的隔离实体，再从搜索页选择该实体并查找素材；确认本地别名召回素材文件名与“本地实体匹配”解释。
 
 - `npm.cmd run test:e2e` 会自行补齐本项目 GNU 工具链的 MinGW 路径，实际启动带 `webdriver-e2e` feature 的 debug Tauri 应用和本地 Vite，直接通过应用内嵌 WebDriver 验证窗口标题、首页壳层、从隔离临时 PNG 创建素材库并点击真实扫描按钮、等待任务完成后在详情页确认资产入库、中文/空格且超过 260 字符路径的图片可生成缩略图、并确认损坏 PNG 仅缺失缩略图而不阻断扫描、200 个隔离 PNG 扫描任务从真实任务中心暂停再恢复后全部入库、无 API Key 的本地关键词搜索会显示素材文件名、结果数量和 Must 命中原因、自定义 Selects 集合创建后刷新仍存在、素材库镜头片段加入该自定义集合后在 Selects 回读，以及从该集合点击 CSV 导出后读取实际写入的片段文件名和入点；仅测试 feature 会读取 `SCENEWEAVER_E2E_DATA_DIR` 并创建/清理该临时目录，不读取或锁定用户 SQLite。导出测试仅在开发构建以明确设置且扩展名匹配的临时路径绕过保存对话框，production 构建不包含它；它不使用、下载或管理 Edge/Chrome Driver，测试服务器和夹具不进入 release/NSIS 安装包。
 - 如需纳入真实视频，显式将本机 `ffmpeg.exe` 的完整路径赋给 `SCENEWEAVER_E2E_FFMPEG_BIN` 后运行同一命令；测试会生成临时 MP4，并确认扫描得到视频时长与至少一个镜头片段。变量缺失时明确跳过该可选检查，绝不下载或安装 FFmpeg。

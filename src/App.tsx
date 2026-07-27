@@ -36,7 +36,7 @@ function Layout() {
           <NavLink data-testid="nav-selects" to="/selects" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
             <span>⭐</span> 选片
           </NavLink>
-          <NavLink to="/entities" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}><span>👤</span> 实体</NavLink>
+          <NavLink data-testid="nav-entities" to="/entities" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}><span>👤</span> 实体</NavLink>
           <NavLink to="/settings" className={({ isActive }) => `${navClass} ${isActive ? activeClass : inactiveClass}`}>
             <span>🔧</span> 设置
           </NavLink>
