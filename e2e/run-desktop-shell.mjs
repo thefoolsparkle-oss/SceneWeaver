@@ -279,11 +279,13 @@ try {
   await (await browser.$('[data-testid="nav-jobs"]')).click();
   const pauseJobButton = await browser.$(`[data-testid="pause-job-${runningScan.id}"]`);
   await pauseJobButton.waitForDisplayed({ timeout: 15_000 });
-  await pauseJobButton.click();
+  await browser.execute((element) => element.click(), pauseJobButton);
+  await pauseJobButton.waitForExist({ reverse: true, timeout: 15_000 });
   await waitForScanStatus(pausableLibrary.id, ['paused']);
   const resumeJobButton = await browser.$(`[data-testid="resume-job-${runningScan.id}"]`);
   await resumeJobButton.waitForDisplayed({ timeout: 15_000 });
-  await resumeJobButton.click();
+  await browser.execute((element) => element.click(), resumeJobButton);
+  await resumeJobButton.waitForExist({ reverse: true, timeout: 15_000 });
   await waitForCompletedScan(pausableLibrary.id);
   const pausedAssets = await invoke('list_assets', { libraryId: pausableLibrary.id });
   assert.equal(pausedAssets.length, 200, `pause/resume scan indexed ${pausedAssets.length} assets instead of 200`);
@@ -312,6 +314,12 @@ try {
   const heading = await browser.$('[data-testid="search-heading"]');
   await heading.waitForDisplayed();
   assert.ok((await heading.getText()).trim().length > 0);
+  const searchInput = await browser.$('input[placeholder="例如：雨夜、角色、采访"]');
+  await searchInput.setValue('scan-fixture');
+  await (await browser.$('button=搜索')).click();
+  const searchText = await waitForBodyText('关键词结果：1 项', 'keyword search result');
+  assert.ok(searchText.includes('scan-fixture.png'), `keyword search omitted indexed fixture:\n${searchText}`);
+  assert.ok(searchText.includes('满足必须条件：scan-fixture'), `keyword search omitted match reason:\n${searchText}`);
 
   await (await browser.$('[data-testid="nav-selects"]')).click();
   const selectsHeading = await browser.$('[data-testid="selects-heading"]');
@@ -362,7 +370,7 @@ try {
   assert.ok(csv.includes('fixture.mp4'), `CSV export omitted fixture media:\n${csv}`);
   assert.ok(csv.includes('00:00:01.000'), `CSV export omitted the segment in point:\n${csv}`);
   await browser.execute(() => { delete window.__SCENEWEAVER_E2E_EXPORT_PATH__; });
-  console.log(`desktop e2e passed: application launch, real PNG library scan, Chinese/spaced long-path and corrupt-media resilience, pause/resume scan workflow${ffmpegPath ? ', real video scan' : ''}, search navigation, custom Selects persistence, custom segment selects, and CSV export`);
+  console.log(`desktop e2e passed: application launch, real PNG library scan, Chinese/spaced long-path and corrupt-media resilience, pause/resume scan workflow${ffmpegPath ? ', real video scan' : ''}, no-API-key keyword search, custom Selects persistence, custom segment selects, and CSV export`);
 } finally {
   await browser?.deleteSession().catch(() => undefined);
   app?.kill();
