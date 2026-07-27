@@ -11,6 +11,8 @@ import { acgCreatorPackEnabled } from '@/api';
 import { useQuery } from '@tanstack/react-query';
 import type { MediaType, SearchRequest } from '@/types';
 
+type ViteImportMeta = ImportMeta & { env?: { DEV?: boolean } };
+
 export default function Search() {
   const [query, setQuery] = useState('');
   const search = useMutation({ mutationFn: searchAssets });
@@ -60,7 +62,10 @@ export default function Search() {
   };
   const submit = (event: React.FormEvent) => { event.preventDefault(); runQuery(query); };
   const chooseReferenceImage = async () => {
-    const path = await open({ multiple: false, filters: [{ name: '图片', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'] }] });
+    const e2eReferencePath = (import.meta as ViteImportMeta).env?.DEV
+      ? (window as Window & { __SCENEWEAVER_E2E_REFERENCE_IMAGE_PATH__?: string }).__SCENEWEAVER_E2E_REFERENCE_IMAGE_PATH__
+      : undefined;
+    const path = e2eReferencePath ?? await open({ multiple: false, filters: [{ name: '图片', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'] }] });
     if (typeof path === 'string') { setSimilarReference(path); search.reset(); similar.reset(); entityMatches.reset(); setSegmentFocus(null); setSelectedAssetIds(new Set()); referenceImage.mutate(path); }
   };
   const searchEntity = () => {

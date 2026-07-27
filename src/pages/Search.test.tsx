@@ -6,7 +6,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import Search from './Search';
 
-const { searchAssets } = vi.hoisted(() => ({ searchAssets: vi.fn() }));
+const { findSimilarByReferenceImage, open, searchAssets } = vi.hoisted(() => ({
+  findSimilarByReferenceImage: vi.fn(),
+  open: vi.fn(),
+  searchAssets: vi.fn(),
+}));
 
 vi.mock('@/api', () => ({
   acgCreatorPackEnabled: vi.fn().mockResolvedValue(false),
@@ -14,7 +18,7 @@ vi.mock('@/api', () => ({
   addAssetsToSelectCollection: vi.fn(),
   findAssetsForEntity: vi.fn(),
   findSimilarAssets: vi.fn(),
-  findSimilarByReferenceImage: vi.fn(),
+  findSimilarByReferenceImage,
   hiddenAssetIds: vi.fn().mockResolvedValue([]),
   listEntities: vi.fn().mockResolvedValue([]),
   listSelectCollections: vi.fn().mockResolvedValue([]),
@@ -23,7 +27,7 @@ vi.mock('@/api', () => ({
   setAssetHidden: vi.fn(),
 }));
 
-vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }));
+vi.mock('@tauri-apps/plugin-dialog', () => ({ open }));
 vi.mock('@/components/MediaGrid', () => ({ MediaGrid: () => null }));
 vi.mock('@/components/SegmentPanel', () => ({ SegmentPanel: () => null }));
 
@@ -40,11 +44,30 @@ function renderSearch() {
 
 afterEach(() => {
   cleanup();
+  delete (window as Window & { __SCENEWEAVER_E2E_REFERENCE_IMAGE_PATH__?: string }).__SCENEWEAVER_E2E_REFERENCE_IMAGE_PATH__;
+  findSimilarByReferenceImage.mockReset();
+  findSimilarByReferenceImage.mockResolvedValue([]);
+  open.mockReset();
   searchAssets.mockReset();
   searchAssets.mockResolvedValue([]);
 });
 
 describe('Search page interactions', () => {
+  it('uses the development-only E2E reference path without opening the system picker', async () => {
+    const referencePath = 'C:\\fixtures\\reference-fixture.png';
+    (window as Window & { __SCENEWEAVER_E2E_REFERENCE_IMAGE_PATH__?: string }).__SCENEWEAVER_E2E_REFERENCE_IMAGE_PATH__ = referencePath;
+    const user = userEvent.setup();
+    renderSearch();
+
+    await user.click(screen.getByRole('button', { name: '参考图' }));
+
+    await waitFor(() => {
+      expect(findSimilarByReferenceImage).toHaveBeenCalled();
+    });
+    expect(findSimilarByReferenceImage.mock.calls[0]?.[0]).toBe(referencePath);
+    expect(open).not.toHaveBeenCalled();
+  });
+
   it('submits parsed conditions, then edits and removes a condition through the rendered chips', async () => {
     searchAssets.mockResolvedValue([]);
     const user = userEvent.setup();

@@ -32,13 +32,13 @@ function pngChunk(type, data) {
   return Buffer.concat([length, typeBytes, data, checksum]);
 }
 
-function createPngFixture() {
+function createPngFixture(red = 18, green = 52, blue = 86) {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(1, 0);
   ihdr.writeUInt32BE(1, 4);
   ihdr[8] = 8;
   ihdr[9] = 2;
-  const rawPixels = Buffer.from([0, 18, 52, 86]);
+  const rawPixels = Buffer.from([0, red, green, blue]);
   return Buffer.concat([
     Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
     pngChunk('IHDR', ihdr),
@@ -48,6 +48,7 @@ function createPngFixture() {
 }
 
 const pngFixture = createPngFixture();
+const referencePngFixture = createPngFixture(194, 47, 29);
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -151,6 +152,7 @@ let browser;
 const appDataDir = await mkdtemp(path.join(tmpdir(), 'sceneweaver-e2e-'));
 const mediaFixtureDir = path.join(appDataDir, 'media-fixture');
 const mediaFixturePath = path.join(mediaFixtureDir, 'scan-fixture.png');
+const referenceFixturePath = path.join(mediaFixtureDir, 'reference-fixture.png');
 const resilienceFixtureDir = path.join(appDataDir, '中文 空格 素材库');
 const resilienceLongFixturePath = path.join(
   resilienceFixtureDir,
@@ -168,6 +170,7 @@ const videoFixtureDir = path.join(appDataDir, 'video-fixture');
 const videoFixturePath = path.join(videoFixtureDir, 'e2e-video.mp4');
 await mkdir(mediaFixtureDir, { recursive: true });
 await writeFile(mediaFixturePath, pngFixture);
+await writeFile(referenceFixturePath, referencePngFixture);
 await mkdir(path.dirname(resilienceLongFixturePath), { recursive: true });
 await writeFile(resilienceLongFixturePath, pngFixture);
 await writeFile(resilienceCorruptFixturePath, 'not an image');
@@ -362,6 +365,12 @@ try {
   assert.ok(searchText.includes('scan-fixture.png'), `keyword search omitted indexed fixture:\n${searchText}`);
   assert.ok(searchText.includes('满足必须条件：scan-fixture'), `keyword search omitted match reason:\n${searchText}`);
 
+  await browser.execute((value) => { window.__SCENEWEAVER_E2E_REFERENCE_IMAGE_PATH__ = value; }, referenceFixturePath);
+  await (await browser.$('button=参考图')).click();
+  const referenceSearchText = await waitForBodyText('参考图相似结果：', 'reference image search result');
+  assert.ok(referenceSearchText.includes('reference-fixture.png'), `reference image search omitted matching fixture:\n${referenceSearchText}`);
+  await browser.execute(() => { delete window.__SCENEWEAVER_E2E_REFERENCE_IMAGE_PATH__; });
+
   const entityName = 'E2E 测试实体';
   await (await browser.$('[data-testid="nav-entities"]')).click();
   const entityNameInput = await browser.$('input[placeholder="实体名称"]');
@@ -434,7 +443,7 @@ try {
   assert.ok(csv.includes('fixture.mp4'), `CSV export omitted fixture media:\n${csv}`);
   assert.ok(csv.includes('00:00:01.000'), `CSV export omitted the segment in point:\n${csv}`);
   await browser.execute(() => { delete window.__SCENEWEAVER_E2E_EXPORT_PATH__; });
-  console.log(`desktop e2e passed: application launch, real PNG library scan, Chinese/spaced long-path and corrupt-media resilience, pause/resume scan workflow, crash recovery scan workflow${ffmpegPath ? ', real video scan' : ''}, no-API-key keyword and entity-alias search, custom Selects persistence, custom segment selects, and CSV export`);
+  console.log(`desktop e2e passed: application launch, real PNG library scan, Chinese/spaced long-path and corrupt-media resilience, pause/resume scan workflow, crash recovery scan workflow${ffmpegPath ? ', real video scan' : ''}, no-API-key keyword, reference-image, and entity-alias search, custom Selects persistence, custom segment selects, and CSV export`);
 } finally {
   await browser?.deleteSession().catch(() => undefined);
   app?.kill();
