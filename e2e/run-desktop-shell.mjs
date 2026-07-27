@@ -102,9 +102,9 @@ async function waitForBodyText(expected, label) {
   throw new Error(`${label} did not render ${expected}:\n${lastText}`);
 }
 
-async function waitForCompletedScan(libraryId) {
+async function waitForCompletedScan(libraryId, maxAttempts = 120) {
   let lastStatus = 'no scan job found';
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const jobs = await invoke('list_jobs');
     const job = jobs.find((candidate) => candidate.library_id === libraryId && candidate.job_type === 'scan');
     if (job) {
@@ -162,6 +162,7 @@ const resilienceLongFixturePath = path.join(
 );
 const resilienceCorruptFixturePath = path.join(resilienceFixtureDir, '损坏素材.png');
 const pauseFixtureDir = path.join(appDataDir, 'pause-fixture');
+const recoveryFixtureDir = path.join(appDataDir, 'recovery-fixture');
 const ffmpegPath = process.env.SCENEWEAVER_E2E_FFMPEG_BIN;
 const videoFixtureDir = path.join(appDataDir, 'video-fixture');
 const videoFixturePath = path.join(videoFixtureDir, 'e2e-video.mp4');
@@ -174,6 +175,11 @@ assert.ok(resilienceLongFixturePath.length > 260, `fixture path is not long enou
 await mkdir(pauseFixtureDir, { recursive: true });
 await Promise.all(Array.from({ length: 200 }, (_, index) => writeFile(
   path.join(pauseFixtureDir, `pause-fixture-${String(index).padStart(3, '0')}.png`),
+  pngFixture,
+)));
+await mkdir(recoveryFixtureDir, { recursive: true });
+await Promise.all(Array.from({ length: 1_000 }, (_, index) => writeFile(
+  path.join(recoveryFixtureDir, `recovery-fixture-${String(index).padStart(4, '0')}.png`),
   pngFixture,
 )));
 if (ffmpegPath) {
@@ -202,8 +208,7 @@ async function invoke(command, args = {}) {
   return result.value;
 }
 
-try {
-  await waitForUrl(devServerUrl, 'Vite development server');
+function launchApp() {
   app = spawn(appBinary, [], {
     cwd: root,
     env: {
@@ -217,7 +222,9 @@ try {
   });
   app.stdout.on('data', (chunk) => { appOutput += String(chunk); });
   app.stderr.on('data', (chunk) => { appOutput += String(chunk); });
+}
 
+async function connectToApp() {
   await waitForUrl(`http://127.0.0.1:${port}/status`, 'embedded WebDriver');
   browser = await remote({
     hostname: '127.0.0.1',
@@ -226,6 +233,26 @@ try {
     connectionRetryCount: 0,
     logLevel: 'silent',
   });
+}
+
+async function restartAppAfterCrash() {
+  await browser?.deleteSession().catch(() => undefined);
+  browser = undefined;
+  if (app?.exitCode === null && app?.signalCode === null) {
+    app.kill('SIGKILL');
+    await Promise.race([new Promise((resolve) => app.once('exit', resolve)), delay(5_000)]);
+  }
+  if (app?.exitCode === null && app?.signalCode === null) {
+    throw new Error('SceneWeaver did not stop after simulated crash');
+  }
+  launchApp();
+  await connectToApp();
+}
+
+try {
+  await waitForUrl(devServerUrl, 'Vite development server');
+  launchApp();
+  await connectToApp();
 
   const appName = await browser.$('[data-testid="app-name"]');
   await appName.waitForDisplayed({ timeout: 15_000 });
@@ -289,6 +316,20 @@ try {
   await waitForCompletedScan(pausableLibrary.id);
   const pausedAssets = await invoke('list_assets', { libraryId: pausableLibrary.id });
   assert.equal(pausedAssets.length, 200, `pause/resume scan indexed ${pausedAssets.length} assets instead of 200`);
+
+  const recoveryLibrary = await invoke('create_library', {
+    req: { name: 'E2E 崩溃恢复素材库', root_path: recoveryFixtureDir, index_profile: 'quick' },
+  });
+  await (await browser.$('[data-testid="nav-libraries"]')).click();
+  await browser.refresh();
+  const recoveryScanButton = await browser.$(`[data-testid="scan-library-${recoveryLibrary.id}"]`);
+  await recoveryScanButton.waitForDisplayed();
+  await recoveryScanButton.click();
+  await waitForScanStatus(recoveryLibrary.id, ['running']);
+  await restartAppAfterCrash();
+  await waitForCompletedScan(recoveryLibrary.id, 600);
+  const recoveredAssets = await invoke('list_assets', { libraryId: recoveryLibrary.id });
+  assert.equal(recoveredAssets.length, 1_000, `recovered scan indexed ${recoveredAssets.length} assets instead of 1,000`);
 
   if (ffmpegPath) {
     const videoLibrary = await invoke('create_library', {
@@ -370,7 +411,7 @@ try {
   assert.ok(csv.includes('fixture.mp4'), `CSV export omitted fixture media:\n${csv}`);
   assert.ok(csv.includes('00:00:01.000'), `CSV export omitted the segment in point:\n${csv}`);
   await browser.execute(() => { delete window.__SCENEWEAVER_E2E_EXPORT_PATH__; });
-  console.log(`desktop e2e passed: application launch, real PNG library scan, Chinese/spaced long-path and corrupt-media resilience, pause/resume scan workflow${ffmpegPath ? ', real video scan' : ''}, no-API-key keyword search, custom Selects persistence, custom segment selects, and CSV export`);
+  console.log(`desktop e2e passed: application launch, real PNG library scan, Chinese/spaced long-path and corrupt-media resilience, pause/resume scan workflow, crash recovery scan workflow${ffmpegPath ? ', real video scan' : ''}, no-API-key keyword search, custom Selects persistence, custom segment selects, and CSV export`);
 } finally {
   await browser?.deleteSession().catch(() => undefined);
   app?.kill();
