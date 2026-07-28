@@ -81,3 +81,4 @@
 - 自定义集合的片段推荐入/出点已由隔离桌面 E2E 经真实 UI 验证为可写入 CSV/JSON/EDL/FCPXML；EDL 固定 30fps 非丢帧，四种格式尚未在 DaVinci Resolve、Premiere Pro 或 Final Cut Pro 中以真实媒体实际导入。
 - 自定义集合的上下按钮排序已由隔离桌面 E2E 验证其 SQLite 写回和 JSON 导出顺序；原生拖拽手势、更多项目规模和专业软件实际导入仍待验证。
 - 2026-07-28 已用本机已有 FFmpeg 运行完整隔离桌面 E2E，确认临时 MP4 的真实扫描、视频时长和镜头片段写入；本机未发现 DaVinci Resolve 或 Adobe Premiere Pro，故尚未在专业软件中以真实媒体导入 EDL/FCPXML。
+- 同一视频 E2E 已验证关键帧、短预览及基础质量分数实际写入并可从缓存读取；真实用户视频、更多编码组合和专业软件导入仍待验证。

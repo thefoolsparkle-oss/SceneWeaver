@@ -120,9 +120,9 @@ async function waitForCompletedScan(libraryId, maxAttempts = 120) {
   throw new Error(`fixture scan did not complete: ${lastStatus}`);
 }
 
-async function waitForScanStatus(libraryId, expectedStatuses) {
+async function waitForScanStatus(libraryId, expectedStatuses, maxAttempts = 600) {
   let lastStatus = 'no scan job found';
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const jobs = await invoke('list_jobs');
     const job = jobs.find((candidate) => candidate.library_id === libraryId && candidate.job_type === 'scan');
     if (job) {
@@ -350,6 +350,17 @@ try {
     assert.ok(videoAssets[0].duration_ms > 0, `video duration missing: ${JSON.stringify(videoAssets[0])}`);
     const videoSegments = await invoke('list_segments', { assetId: videoAssets[0].id });
     assert.ok(videoSegments.length > 0, 'video scan did not create any scene segments');
+    const derivedSegment = videoSegments.find((segment) => segment.representative_frame_path && segment.preview_path);
+    assert.ok(derivedSegment, `video scan did not persist keyframe and preview paths: ${JSON.stringify(videoSegments)}`);
+    assert.ok(Number.isFinite(derivedSegment.quality_score), `video segment quality score missing: ${JSON.stringify(derivedSegment)}`);
+    assert.ok(Number.isFinite(derivedSegment.black_frame_score), `video segment black-frame score missing: ${JSON.stringify(derivedSegment)}`);
+    assert.ok(Number.isFinite(derivedSegment.blur_score), `video segment blur score missing: ${JSON.stringify(derivedSegment)}`);
+    const [keyframe, preview] = await Promise.all([
+      readFile(derivedSegment.representative_frame_path),
+      readFile(derivedSegment.preview_path),
+    ]);
+    assert.ok(keyframe.length > 0, 'video keyframe was empty');
+    assert.ok(preview.length > 0, 'video preview was empty');
   } else {
     console.log('desktop e2e video scan skipped: set SCENEWEAVER_E2E_FFMPEG_BIN to a local ffmpeg executable to enable it');
   }
@@ -533,10 +544,10 @@ try {
   ]);
   if (app?.exitCode === null) app.kill('SIGKILL');
   if (vite.exitCode === null) vite.kill('SIGKILL');
-  if (app?.exitCode !== 0 && app?.exitCode !== null) {
+  if (app && app.exitCode !== 0 && app.exitCode !== null) {
     console.error(`SceneWeaver exited with ${app.exitCode}: ${appOutput}`);
   }
-  if (vite.exitCode !== 0 && vite.exitCode !== null) {
+  if (vite && vite.exitCode !== 0 && vite.exitCode !== null) {
     console.error(`Vite exited with ${vite.exitCode}: ${viteOutput}`);
   }
   await rm(appDataDir, { recursive: true, force: true });
