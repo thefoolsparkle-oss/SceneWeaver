@@ -496,8 +496,33 @@ try {
   const fcpxml = await readTextFileWhenReady(fcpxmlExportPath, 'custom segment FCPXML export');
   assert.ok(fcpxml.includes('<fcpxml version="1.10">'), `FCPXML export has no FCPXML root:\n${fcpxml}`);
   assert.ok(fcpxml.includes('start="1500/1000s" duration="1000/1000s"'), `FCPXML export omitted the recommended range:\n${fcpxml}`);
+  const scannedAssets = await invoke('list_assets', { libraryId: scannedLibrary.id });
+  const sortableAsset = scannedAssets.find((asset) => asset.file_name === 'scan-fixture.png');
+  assert.ok(sortableAsset, `sortable fixture asset missing: ${JSON.stringify(scannedAssets)}`);
+  await invoke('add_asset_to_select_collection', { collectionId: fixture.collection_id, assetId: sortableAsset.id });
+  await browser.refresh();
+  const sortableCollection = await browser.$('button=E2E 片段集合');
+  await sortableCollection.waitForDisplayed();
+  await sortableCollection.click();
+  const beforeReorder = await invoke('list_select_items', { collectionId: fixture.collection_id });
+  assert.equal(beforeReorder.length, 2, `custom collection did not contain two sortable items: ${JSON.stringify(beforeReorder)}`);
+  const segmentItem = beforeReorder.find((item) => item.segment_id === fixture.segment_id);
+  assert.ok(segmentItem, `custom segment item missing before reorder: ${JSON.stringify(beforeReorder)}`);
+  await (await browser.$(`[data-testid="select-item-down-${segmentItem.id}"]`)).click();
+  let afterReorder = beforeReorder;
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    afterReorder = await invoke('list_select_items', { collectionId: fixture.collection_id });
+    if (afterReorder[1]?.id === segmentItem.id) break;
+    await delay(100);
+  }
+  assert.equal(afterReorder[1]?.id, segmentItem.id, `real Selects down action did not persist order: ${JSON.stringify(afterReorder)}`);
+  const orderedJsonPath = path.join(appDataDir, 'e2e-custom-segment-ordered.json');
+  await browser.execute((value) => { window.__SCENEWEAVER_E2E_EXPORT_PATH__ = value; }, orderedJsonPath);
+  await (await browser.$('[data-testid="export-json"]')).click();
+  const orderedJson = await readTextFileWhenReady(orderedJsonPath, 'ordered custom segment JSON export');
+  assert.ok(orderedJson.indexOf('scan-fixture.png') < orderedJson.indexOf('fixture.mp4'), `JSON export did not preserve UI order:\n${orderedJson}`);
   await browser.execute(() => { delete window.__SCENEWEAVER_E2E_EXPORT_PATH__; });
-  console.log(`desktop e2e passed: application launch, real PNG library scan, Chinese/spaced long-path and corrupt-media resilience, pause/resume scan workflow, crash recovery scan workflow${ffmpegPath ? ', real video scan' : ''}, no-API-key keyword, reference-image, and entity alias/positive-negative reference search, custom Selects persistence, custom segment selects, and CSV/JSON/EDL/FCPXML export`);
+  console.log(`desktop e2e passed: application launch, real PNG library scan, Chinese/spaced long-path and corrupt-media resilience, pause/resume scan workflow, crash recovery scan workflow${ffmpegPath ? ', real video scan' : ''}, no-API-key keyword, reference-image, and entity alias/positive-negative reference search, custom Selects persistence, custom segment selects, sorting, and CSV/JSON/EDL/FCPXML export`);
 } finally {
   await browser?.deleteSession().catch(() => undefined);
   app?.kill();
