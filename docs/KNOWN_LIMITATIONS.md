@@ -80,3 +80,4 @@
 - 无 API Key 的关键词、基础参考图相似检索、Entity 别名以及一正一负颜色参考图 GUI 已由隔离桌面 E2E 验证；系统文件选择器、更多 Entity 视觉参考组合和真实用户媒体的完整交互仍待验证。
 - 自定义集合的片段推荐入/出点已由隔离桌面 E2E 经真实 UI 验证为可写入 CSV/JSON/EDL/FCPXML；EDL 固定 30fps 非丢帧，四种格式尚未在 DaVinci Resolve、Premiere Pro 或 Final Cut Pro 中以真实媒体实际导入。
 - 自定义集合的上下按钮排序已由隔离桌面 E2E 验证其 SQLite 写回和 JSON 导出顺序；原生拖拽手势、更多项目规模和专业软件实际导入仍待验证。
+- 2026-07-28 已用本机已有 FFmpeg 运行完整隔离桌面 E2E，确认临时 MP4 的真实扫描、视频时长和镜头片段写入；本机未发现 DaVinci Resolve 或 Adobe Premiere Pro，故尚未在专业软件中以真实媒体导入 EDL/FCPXML。
