@@ -382,6 +382,33 @@ try {
   assert.ok(entity, `created entity was not persisted: ${JSON.stringify(await invoke('list_entities'))}`);
   assert.deepEqual(entity.aliases, ['scan-fixture']);
 
+  const visualEntityName = 'E2E 颜色参考实体';
+  await (await browser.$('input[placeholder="实体名称"]')).setValue(visualEntityName);
+  await (await browser.$('button=创建')).click();
+  await waitForBodyText(visualEntityName, 'created visual reference entity');
+  const visualEntity = (await invoke('list_entities')).find((candidate) => candidate.name === visualEntityName);
+  assert.ok(visualEntity, `visual reference entity was not persisted: ${JSON.stringify(await invoke('list_entities'))}`);
+  await browser.execute((value) => { window.__SCENEWEAVER_E2E_ENTITY_REFERENCE_PATH__ = value; }, referenceFixturePath);
+  const positiveReferenceButton = await browser.$(`[data-testid="entity-positive-reference-${visualEntity.id}"]`);
+  await positiveReferenceButton.click();
+  await waitForBodyText('正参考 1 张 · 负参考 0 张', 'positive entity reference count');
+  await browser.execute((value) => { window.__SCENEWEAVER_E2E_ENTITY_REFERENCE_PATH__ = value; }, mediaFixturePath);
+  const negativeReferenceButton = await browser.$(`[data-testid="entity-negative-reference-${visualEntity.id}"]`);
+  await negativeReferenceButton.click();
+  await waitForBodyText('正参考 1 张 · 负参考 1 张', 'negative entity reference count');
+  const visualReferences = await invoke('list_entity_references', { entityId: visualEntity.id });
+  assert.equal(visualReferences.length, 2, `entity references were not persisted: ${JSON.stringify(visualReferences)}`);
+  assert.ok(visualReferences.some((reference) => reference.image_path === referenceFixturePath && reference.is_positive));
+  assert.ok(visualReferences.some((reference) => reference.image_path === mediaFixturePath && !reference.is_positive));
+  await (await browser.$(`[data-testid="entity-find-assets-${visualEntity.id}"]`)).click();
+  await waitForBodyText('实体匹配素材', 'entity reference visual results');
+  const visualEntityCard = await browser.$(`[data-testid="entity-card-${visualEntity.id}"]`);
+  assert.ok((await visualEntityCard.getText()).includes('实体匹配素材'), 'entity visual results did not render in its card');
+  const visualMatches = await invoke('find_assets_for_entity', { entityId: visualEntity.id });
+  assert.equal(visualMatches[0]?.file_name, 'reference-fixture.png', `positive reference did not rank matching asset first: ${JSON.stringify(visualMatches)}`);
+  assert.ok(visualMatches.findIndex((asset) => asset.file_name === 'scan-fixture.png') > 0, `negative reference was not ranked below the positive match: ${JSON.stringify(visualMatches)}`);
+  await browser.execute(() => { delete window.__SCENEWEAVER_E2E_ENTITY_REFERENCE_PATH__; });
+
   await (await browser.$('[data-testid="nav-search"]')).click();
   const entitySelect = await browser.$('#entity-search');
   await browser.execute((element, value) => {
@@ -443,7 +470,7 @@ try {
   assert.ok(csv.includes('fixture.mp4'), `CSV export omitted fixture media:\n${csv}`);
   assert.ok(csv.includes('00:00:01.000'), `CSV export omitted the segment in point:\n${csv}`);
   await browser.execute(() => { delete window.__SCENEWEAVER_E2E_EXPORT_PATH__; });
-  console.log(`desktop e2e passed: application launch, real PNG library scan, Chinese/spaced long-path and corrupt-media resilience, pause/resume scan workflow, crash recovery scan workflow${ffmpegPath ? ', real video scan' : ''}, no-API-key keyword, reference-image, and entity-alias search, custom Selects persistence, custom segment selects, and CSV export`);
+  console.log(`desktop e2e passed: application launch, real PNG library scan, Chinese/spaced long-path and corrupt-media resilience, pause/resume scan workflow, crash recovery scan workflow${ffmpegPath ? ', real video scan' : ''}, no-API-key keyword, reference-image, and entity alias/positive-negative reference search, custom Selects persistence, custom segment selects, and CSV export`);
 } finally {
   await browser?.deleteSession().catch(() => undefined);
   app?.kill();
